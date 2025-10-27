@@ -88,6 +88,7 @@ async function loadSettings() {
 
 async function loadDebts() {
   state.debts = await fetchJSON("/api/debts");
+  await ensureMinimumBudget();
   renderDebts();
 }
 
@@ -106,6 +107,34 @@ async function loadSimulation(showToast = true) {
   } catch (error) {
     showNotification(error.message, "error");
   }
+}
+
+async function ensureMinimumBudget() {
+  if (!state.settings) return;
+
+  const minimumTotal = state.debts.reduce((sum, debt) => {
+    const value = Number.parseFloat(debt.minimumPayment ?? 0);
+    return sum + (Number.isNaN(value) ? 0 : value);
+  }, 0);
+
+  const normalized = Number.parseFloat(minimumTotal.toFixed(2));
+  if (Number.isNaN(normalized)) {
+    return;
+  }
+
+  const currentBudget = Number.parseFloat(state.settings.monthlyBudget);
+  if (!Number.isFinite(currentBudget) || Math.abs(currentBudget - normalized) > 0.009) {
+    const updated = await fetchJSON("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify({ monthlyBudget: normalized }),
+    });
+    state.settings = { ...state.settings, ...updated };
+  }
+
+  const syncedBudget = Number.parseFloat(state.settings.monthlyBudget).toFixed(2);
+  state.settings.monthlyBudget = syncedBudget;
+  settingsForm.elements.monthlyBudget.value = syncedBudget;
+  monthlyBudgetDisplayEl.textContent = formatCurrency(syncedBudget);
 }
 
 function renderDebts() {
@@ -375,7 +404,8 @@ async function handleDebtSubmit(event) {
   try {
     await fetchJSON("/api/debts", { method: "POST", body: JSON.stringify(payload) });
     debtForm.reset();
-    await Promise.all([loadDebts(), loadSimulation(true)]);
+    await loadDebts();
+    await loadSimulation(true);
   } catch (error) {
     showNotification(error.message, "error");
   }
@@ -395,7 +425,8 @@ debtsTable.addEventListener("click", async (event) => {
         method: "PUT",
         body: JSON.stringify(payload),
       });
-      await Promise.all([loadDebts(), loadSimulation(true)]);
+      await loadDebts();
+      await loadSimulation(true);
     } catch (error) {
       showNotification(error.message, "error");
     }
@@ -405,7 +436,8 @@ debtsTable.addEventListener("click", async (event) => {
     if (!window.confirm("Delete this debt?")) return;
     try {
       await fetchJSON(`/api/debts/${debtId}`, { method: "DELETE" });
-      await Promise.all([loadDebts(), loadSimulation(true)]);
+      await loadDebts();
+      await loadSimulation(true);
     } catch (error) {
       showNotification(error.message, "error");
     }
