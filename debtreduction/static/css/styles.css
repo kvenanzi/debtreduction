@@ -127,6 +127,25 @@
   background: rgba(255, 255, 255, 0.95);
 }
 
+.currency-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency-prefix {
+  position: absolute;
+  left: 0.85rem;
+  color: rgba(22, 101, 52, 0.7);
+  font-weight: 600;
+  pointer-events: none;
+  font-size: 0.95rem;
+}
+
+.currency-field {
+  padding-left: 1.8rem;
+}
+
 .input-field:focus {
   outline: none;
   border-color: var(--sheet-primary);
@@ -147,6 +166,25 @@
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   color: #fff;
+}
+
+.btn-reset {
+  margin-top: 0.4rem;
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: rgba(22, 101, 52, 0.75);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-reset:hover {
+  color: var(--sheet-primary-dark);
+  text-decoration: underline;
 }
 
 .btn-primary {

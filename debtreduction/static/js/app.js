@@ -17,6 +17,7 @@ const summaryTotalInterestEl = document.getElementById("summary-total-interest")
 const summaryDebtFreeEl = document.getElementById("summary-debt-free");
 const tabButtons = document.querySelectorAll(".tab-btn");
 const tabGroups = document.querySelectorAll(".tab-group");
+const resetBudgetBtn = document.getElementById("reset-budget");
 
 const state = {
   settings: null,
@@ -111,14 +112,17 @@ async function loadSimulation(showToast = true) {
   }
 }
 
-async function ensureMinimumBudget() {
-  if (!state.settings) return;
-
-  const minimumTotal = state.debts.reduce((sum, debt) => {
+function calculateMinimumTotal() {
+  return state.debts.reduce((sum, debt) => {
     const value = Number.parseFloat(debt.minimumPayment ?? 0);
     return sum + (Number.isNaN(value) ? 0 : value);
   }, 0);
+}
 
+async function ensureMinimumBudget() {
+  if (!state.settings) return;
+
+  const minimumTotal = calculateMinimumTotal();
   const normalized = Number.parseFloat(minimumTotal.toFixed(2));
   if (Number.isNaN(normalized)) {
     return;
@@ -496,6 +500,23 @@ tabButtons.forEach((button) => {
     });
     button.classList.add("is-active");
   });
+});
+
+resetBudgetBtn?.addEventListener("click", async () => {
+  const minimumTotal = calculateMinimumTotal();
+  const normalized = Number.isNaN(minimumTotal) ? 0 : Number.parseFloat(minimumTotal.toFixed(2));
+  settingsForm.elements.monthlyBudget.value = normalized.toFixed(2);
+  state.settings = { ...state.settings, monthlyBudget: normalized.toFixed(2) };
+  monthlyBudgetDisplayEl.textContent = formatCurrency(normalized);
+  try {
+    await fetchJSON("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify({ monthlyBudget: normalized }),
+    });
+    await loadSimulation(true);
+  } catch (error) {
+    showNotification(error.message, "error");
+  }
 });
 
 settingsForm.addEventListener("submit", handleSettingsSubmit);
