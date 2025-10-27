@@ -63,6 +63,23 @@ function updateBudgetInputDisplay(amount) {
   monthlyBudgetInput.value = formatted;
 }
 
+function parsePercent(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : Number.NaN;
+  }
+  if (value === null || value === undefined) return Number.NaN;
+  const cleaned = String(value).replace(/[^0-9.-]/g, "");
+  if (cleaned.trim() === "") return Number.NaN;
+  const parsed = Number.parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function formatPercentInput(value) {
+  const num = parsePercent(value);
+  if (Number.isNaN(num)) return "";
+  return num.toFixed(2);
+}
+
 function showNotification(message, variant = "error") {
   if (!message) {
     notificationEl.classList.add("hidden");
@@ -189,19 +206,31 @@ function renderDebts() {
     row.dataset.id = debt.id;
     balanceSum += Number.parseFloat(debt.balance) || 0;
     minimumSum += Number.parseFloat(debt.minimumPayment) || 0;
+    const balanceFormatted = formatBudgetInput(debt.balance);
+    const aprFormatted = formatPercentInput(debt.apr);
+    const paymentFormatted = formatBudgetInput(debt.minimumPayment);
     row.innerHTML = `
       <td class="px-3 py-2 font-semibold text-slate-700">${index + 1}</td>
       <td class="px-3 py-2">
         <input name="creditor" value="${debt.creditor}" class="debt-input" />
       </td>
       <td class="px-3 py-2">
-        <input name="balance" type="number" step="0.01" min="0" value="${Number.parseFloat(debt.balance).toFixed(2)}" class="debt-input" />
+        <div class="table-input">
+          <span class="table-prefix">$</span>
+          <input name="balance" type="text" data-format="currency" value="${balanceFormatted}" class="table-field" />
+        </div>
       </td>
       <td class="px-3 py-2">
-        <input name="apr" type="number" step="0.01" min="0" value="${Number.parseFloat(debt.apr).toFixed(2)}" class="debt-input" />
+        <div class="table-input">
+          <input name="apr" type="text" data-format="percent" value="${aprFormatted}" class="table-field" />
+          <span class="table-suffix">%</span>
+        </div>
       </td>
       <td class="px-3 py-2">
-        <input name="minimumPayment" type="number" step="0.01" min="0" value="${Number.parseFloat(debt.minimumPayment).toFixed(2)}" class="debt-input" />
+        <div class="table-input">
+          <span class="table-prefix">$</span>
+          <input name="minimumPayment" type="text" data-format="currency" value="${paymentFormatted}" class="table-field" />
+        </div>
       </td>
       <td class="px-3 py-2">
         <input name="customPriority" type="number" step="1" min="1" value="${debt.customPriority ?? ""}" class="debt-input" />
@@ -241,9 +270,21 @@ function buildDebtPayload(row) {
   const customPriority = row.querySelector('[name="customPriority"]').value;
   if (!creditor) throw new Error("Creditor is required");
   payload.creditor = creditor;
-  payload.balance = Number.parseFloat(balance);
-  payload.apr = Number.parseFloat(apr);
-  payload.minimumPayment = Number.parseFloat(minimumPayment);
+  const parsedBalance = parseCurrency(balance);
+  const parsedApr = parsePercent(apr);
+  const parsedMinimum = parseCurrency(minimumPayment);
+  if (Number.isNaN(parsedBalance) || parsedBalance <= 0) {
+    throw new Error("Balance must be greater than 0");
+  }
+  if (Number.isNaN(parsedApr) || parsedApr < 0) {
+    throw new Error("APR must be zero or positive");
+  }
+  if (Number.isNaN(parsedMinimum) || parsedMinimum <= 0) {
+    throw new Error("Minimum payment must be greater than 0");
+  }
+  payload.balance = Number.parseFloat(parsedBalance.toFixed(2));
+  payload.apr = Number.parseFloat(parsedApr.toFixed(2));
+  payload.minimumPayment = Number.parseFloat(parsedMinimum.toFixed(2));
   payload.customPriority = customPriority ? Number.parseInt(customPriority, 10) : null;
   return payload;
 }
@@ -522,6 +563,34 @@ scheduleBody.addEventListener("change", async (event) => {
   }
 });
 
+debtsTable.addEventListener("focusin", (event) => {
+  const input = event.target;
+  if (!input.matches(".table-field")) return;
+  const format = input.dataset.format;
+  if (format === "currency") {
+    const value = parseCurrency(input.value);
+    input.value = Number.isNaN(value) ? "" : value.toFixed(2);
+    setTimeout(() => input.select(), 0);
+  } else if (format === "percent") {
+    const value = parsePercent(input.value);
+    input.value = Number.isNaN(value) ? "" : value.toFixed(2);
+    setTimeout(() => input.select(), 0);
+  }
+});
+
+debtsTable.addEventListener("focusout", (event) => {
+  const input = event.target;
+  if (!input.matches(".table-field")) return;
+  const format = input.dataset.format;
+  if (format === "currency") {
+    const value = parseCurrency(input.value);
+    input.value = Number.isNaN(value) ? "" : formatBudgetInput(value);
+  } else if (format === "percent") {
+    const value = parsePercent(input.value);
+    input.value = Number.isNaN(value) ? "" : formatPercentInput(value);
+  }
+});
+
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const target = button.dataset.target;
@@ -544,10 +613,18 @@ resetBudgetBtn?.addEventListener("click", async () => {
   state.settings = { ...state.settings, monthlyBudget: normalized };
   monthlyBudgetDisplayEl.textContent = formatCurrency(normalized);
   try {
-    await fetchJSON("/api/settings", {
+    const updated = await fetchJSON("/api/settings", {
       method: "PUT",
       body: JSON.stringify({ monthlyBudget: normalized }),
     });
+    if (updated?.monthlyBudget !== undefined) {
+      const updatedBudget = parseCurrency(updated.monthlyBudget);
+      if (!Number.isNaN(updatedBudget)) {
+        state.settings.monthlyBudget = updatedBudget;
+        updateBudgetInputDisplay(updatedBudget);
+        monthlyBudgetDisplayEl.textContent = formatCurrency(updatedBudget);
+      }
+    }
     await loadSimulation(true);
   } catch (error) {
     showNotification(error.message, "error");
