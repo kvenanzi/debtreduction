@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+build/
+dist/
+.pytest_cache/
+node_modules/
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+instance/data.db
+*.log
+2025-10-27 12_08_57-Clipboard.png
