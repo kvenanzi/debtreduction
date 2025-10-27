@@ -80,3 +80,46 @@ def test_custom_priority_orders_debts():
 
     ordered_creditors = [item["creditor"] for item in result["debts"]]
     assert ordered_creditors == ["Loan B", "Loan C", "Loan A"]
+
+
+def test_avalanche_known_payoff_timeline():
+    """Ensure schedule matches a hand-calculated avalanche scenario."""
+
+    settings = make_settings("avalanche", "200.00")
+    debts = [
+        make_debt(1, "Loan A", "100.00", 12.0, "50.00", position=0),
+        make_debt(2, "Loan B", "200.00", 6.0, "25.00", position=1),
+    ]
+
+    result = run_simulation(settings, debts, [])
+
+    assert result["totals"] == {
+        "totalInterest": "2.51",
+        "totalMonths": 2,
+        "minPaymentsSum": "75.00",
+        "initialSnowball": "125.00",
+    }
+
+    months = result["months"]
+    assert len(months) == 2
+
+    # Month 1: avalanche targets Loan A (higher APR)
+    assert months[0]["monthIndex"] == 1
+    assert months[0]["monthLabel"] == "Jan 2024"
+    assert months[0]["snowballAmount"] == "125.00"
+    assert months[0]["interestAccrued"] == "2.00"
+    assert months[0]["payments"] == {"1": "101.00", "2": "99.00"}
+
+    # Month 2: freed minimum from Loan A rolls into Loan B
+    assert months[1]["monthIndex"] == 2
+    assert months[1]["monthLabel"] == "Feb 2024"
+    assert months[1]["snowballAmount"] == "175.00"
+    assert months[1]["interestAccrued"] == "0.51"
+    assert months[1]["payments"] == {"1": "0.00", "2": "102.51"}
+
+    debts_summary = result["debts"]
+    assert [item["creditor"] for item in debts_summary] == ["Loan A", "Loan B"]
+    assert debts_summary[0]["monthsToPayoff"] == 1
+    assert debts_summary[0]["payoffMonthLabel"] == "Jan 2024"
+    assert debts_summary[1]["monthsToPayoff"] == 2
+    assert debts_summary[1]["payoffMonthLabel"] == "Feb 2024"
