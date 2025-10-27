@@ -270,6 +270,7 @@ def run_simulation(
             "totalInterest": str(quantize(total_interest)),
             "totalMonths": total_months,
             "minPaymentsSum": str(quantize(min_payment_sum)),
+            "minimumMonthlyPayment": str(quantize(min_payment_sum)),
             "initialSnowball": str(quantize(initial_snowball)),
         },
     }

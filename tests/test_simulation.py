@@ -46,6 +46,7 @@ def test_simulation_avalanche_generates_schedule():
     result = run_simulation(settings, debts, [])
 
     assert result["totals"]["minPaymentsSum"] == "75.00"
+    assert result["totals"]["minimumMonthlyPayment"] == "75.00"
     assert result["totals"]["initialSnowball"] == "125.00"
     assert result["totals"]["totalMonths"] > 0
     assert result["months"], "Expected at least one schedule row"
@@ -97,6 +98,7 @@ def test_avalanche_known_payoff_timeline():
         "totalInterest": "2.51",
         "totalMonths": 2,
         "minPaymentsSum": "75.00",
+        "minimumMonthlyPayment": "75.00",
         "initialSnowball": "125.00",
     }
 
