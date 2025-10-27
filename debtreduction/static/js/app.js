@@ -18,6 +18,7 @@ const summaryDebtFreeEl = document.getElementById("summary-debt-free");
 const tabButtons = document.querySelectorAll(".tab-btn");
 const tabGroups = document.querySelectorAll(".tab-group");
 const resetBudgetBtn = document.getElementById("reset-budget");
+const monthlyBudgetInput = settingsForm.elements.monthlyBudget;
 
 const state = {
   settings: null,
@@ -38,6 +39,28 @@ function formatCurrency(value) {
   const num = Number.parseFloat(value);
   if (Number.isNaN(num)) return "$0.00";
   return num.toLocaleString(undefined, { style: "currency", currency: "USD" });
+}
+
+function parseCurrency(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : Number.NaN;
+  }
+  if (value === null || value === undefined) return Number.NaN;
+  const cleaned = String(value).replace(/[^0-9.-]/g, "");
+  if (cleaned.trim() === "") return Number.NaN;
+  const parsed = Number.parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function formatBudgetInput(amount) {
+  const num = parseCurrency(amount);
+  if (Number.isNaN(num)) return "";
+  return formatCurrency(num).replace(/^\$/, "");
+}
+
+function updateBudgetInputDisplay(amount) {
+  const formatted = formatBudgetInput(amount);
+  monthlyBudgetInput.value = formatted;
 }
 
 function showNotification(message, variant = "error") {
@@ -83,10 +106,13 @@ async function loadSettings() {
   state.settings = await fetchJSON("/api/settings");
   const { balanceDate, monthlyBudget, strategy } = state.settings;
   settingsForm.elements.balanceDate.value = balanceDate;
-  settingsForm.elements.monthlyBudget.value = Number.parseFloat(monthlyBudget).toFixed(2);
+  const parsedBudget = parseCurrency(monthlyBudget);
+  const budgetNumber = Number.isNaN(parsedBudget) ? 0 : parsedBudget;
+  updateBudgetInputDisplay(budgetNumber);
   settingsForm.elements.strategy.value = strategy;
-  monthlyBudgetDisplayEl.textContent = formatCurrency(monthlyBudget);
+  monthlyBudgetDisplayEl.textContent = formatCurrency(budgetNumber);
   strategyLabelEl.textContent = strategyLabels[strategy] || strategy;
+  state.settings.monthlyBudget = budgetNumber;
 }
 
 async function loadDebts() {
@@ -128,19 +154,22 @@ async function ensureMinimumBudget() {
     return;
   }
 
-  const currentBudget = Number.parseFloat(state.settings.monthlyBudget);
+  const currentBudget = parseCurrency(state.settings.monthlyBudget);
   if (!Number.isFinite(currentBudget) || Math.abs(currentBudget - normalized) > 0.009) {
     const updated = await fetchJSON("/api/settings", {
       method: "PUT",
       body: JSON.stringify({ monthlyBudget: normalized }),
     });
-    state.settings = { ...state.settings, ...updated };
+    const updatedBudget = parseCurrency(updated.monthlyBudget);
+    state.settings = { ...state.settings, ...updated, monthlyBudget: updatedBudget };
+    updateBudgetInputDisplay(updatedBudget);
+    monthlyBudgetDisplayEl.textContent = formatCurrency(updatedBudget);
+    return;
   }
 
-  const syncedBudget = Number.parseFloat(state.settings.monthlyBudget).toFixed(2);
-  state.settings.monthlyBudget = syncedBudget;
-  settingsForm.elements.monthlyBudget.value = syncedBudget;
-  monthlyBudgetDisplayEl.textContent = formatCurrency(syncedBudget);
+  state.settings.monthlyBudget = normalized;
+  updateBudgetInputDisplay(normalized);
+  monthlyBudgetDisplayEl.textContent = formatCurrency(normalized);
 }
 
 function renderDebts() {
@@ -385,14 +414,20 @@ async function handleSettingsSubmit(event) {
   event.preventDefault();
   const formData = new FormData(settingsForm);
   const payload = Object.fromEntries(formData.entries());
-  payload.monthlyBudget = Number.parseFloat(payload.monthlyBudget);
+  const budgetNumber = parseCurrency(payload.monthlyBudget);
+  if (Number.isNaN(budgetNumber)) {
+    showNotification("Enter a valid monthly payment.");
+    return;
+  }
+  payload.monthlyBudget = Number.parseFloat(budgetNumber.toFixed(2));
 
   try {
     await fetchJSON("/api/settings", {
       method: "PUT",
       body: JSON.stringify(payload),
     });
-    await Promise.all([loadSettings(), loadSimulation(true)]);
+    await loadSettings();
+    await loadSimulation(true);
   } catch (error) {
     showNotification(error.message, "error");
   }
@@ -505,8 +540,8 @@ tabButtons.forEach((button) => {
 resetBudgetBtn?.addEventListener("click", async () => {
   const minimumTotal = calculateMinimumTotal();
   const normalized = Number.isNaN(minimumTotal) ? 0 : Number.parseFloat(minimumTotal.toFixed(2));
-  settingsForm.elements.monthlyBudget.value = normalized.toFixed(2);
-  state.settings = { ...state.settings, monthlyBudget: normalized.toFixed(2) };
+  updateBudgetInputDisplay(normalized);
+  state.settings = { ...state.settings, monthlyBudget: normalized };
   monthlyBudgetDisplayEl.textContent = formatCurrency(normalized);
   try {
     await fetchJSON("/api/settings", {
@@ -521,6 +556,19 @@ resetBudgetBtn?.addEventListener("click", async () => {
 
 settingsForm.addEventListener("submit", handleSettingsSubmit);
 debtForm.addEventListener("submit", handleDebtSubmit);
+
+monthlyBudgetInput.addEventListener("blur", () => {
+  const value = parseCurrency(monthlyBudgetInput.value);
+  if (Number.isNaN(value)) {
+    monthlyBudgetInput.value = "";
+    return;
+  }
+  updateBudgetInputDisplay(value);
+});
+
+monthlyBudgetInput.addEventListener("focus", () => {
+  monthlyBudgetInput.select();
+});
 
 async function initialise() {
   try {
