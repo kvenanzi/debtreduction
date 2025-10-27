@@ -340,3 +340,47 @@ table.data-table td:first-child {
   background: rgba(220, 252, 231, 0.8);
   color: var(--sheet-primary-dark);
 }
+
+.tab-bar {
+  display: inline-flex;
+  gap: 0.75rem;
+  background: rgba(22, 101, 52, 0.08);
+  border: 1px solid rgba(22, 101, 52, 0.18);
+  border-radius: 999px;
+  padding: 0.4rem;
+  align-self: flex-start;
+}
+
+.tab-btn {
+  border: none;
+  background: transparent;
+  padding: 0.45rem 1.15rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(22, 101, 52, 0.6);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tab-btn:hover {
+  background: rgba(22, 101, 52, 0.12);
+  color: var(--sheet-primary-dark);
+}
+
+.tab-btn.is-active {
+  background: linear-gradient(135deg, rgba(22, 101, 52, 0.85), rgba(13, 148, 136, 0.85));
+  color: #f8fafc;
+  box-shadow: 0 10px 18px -12px rgba(20, 83, 45, 0.6);
+}
+
+.tab-group {
+  display: none;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tab-group.is-active {
+  display: flex;
+}

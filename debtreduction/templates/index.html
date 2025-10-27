@@ -180,51 +180,60 @@
               </article>
             </div>
 
-            <section class="panel">
-              <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <h2>Snowball Growth Chart</h2>
-                <p class="text-sm text-slate-500">
-                  Bars show your rolling snowball payment. The line tracks interest accrued each month.
-                </p>
-              </div>
-              <canvas id="snowball-chart" height="220"></canvas>
-            </section>
+            <div class="tab-bar">
+              <button class="tab-btn is-active" data-target="overview-tab">Overview</button>
+              <button class="tab-btn" data-target="schedule-tab">Payment Schedule</button>
+            </div>
 
-            <section class="panel">
-              <h2>Debts in Chosen Order</h2>
-              <div class="overflow-x-auto">
-                <table class="data-table text-sm">
-                  <thead>
-                    <tr>
-                      <th>Creditor</th>
-                      <th>Original Balance</th>
-                      <th>Interest Paid</th>
-                      <th>Months to Pay Off</th>
-                      <th>Month Paid Off</th>
-                    </tr>
-                  </thead>
-                  <tbody id="summary-table"></tbody>
-                </table>
-              </div>
-              <div class="table-footer">
-                <span>Total Interest Paid: <span id="summary-total-interest">$0.00</span></span>
-                <span>Debt Free: <span id="summary-debt-free">—</span></span>
-              </div>
-            </section>
+            <div id="overview-tab" class="tab-group is-active">
+              <section class="panel">
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <h2>Snowball Growth Chart</h2>
+                  <p class="text-sm text-slate-500">
+                    Bars show your rolling snowball payment. The line tracks interest accrued each month.
+                  </p>
+                </div>
+                <canvas id="snowball-chart" height="220"></canvas>
+              </section>
 
-            <section class="panel">
-              <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <h2>Payment Schedule</h2>
-                <p class="text-sm text-slate-500">Adjust the additional payment column to model extra payoff each month.</p>
-              </div>
-              <div class="overflow-x-auto">
-                <table class="data-table text-xs md:text-sm">
-                  <thead id="schedule-head"></thead>
-                  <tbody id="schedule-body"></tbody>
-                </table>
-              </div>
-              <p class="schedule-note">Results are estimates and assume monthly compounding.</p>
-            </section>
+              <section class="panel">
+                <h2>Debts in Chosen Order</h2>
+                <div class="overflow-x-auto">
+                  <table class="data-table text-sm">
+                    <thead>
+                      <tr>
+                        <th>Creditor</th>
+                        <th>Original Balance</th>
+                        <th>Interest Paid</th>
+                        <th>Months to Pay Off</th>
+                        <th>Month Paid Off</th>
+                      </tr>
+                    </thead>
+                    <tbody id="summary-table"></tbody>
+                  </table>
+                </div>
+                <div class="table-footer">
+                  <span>Total Interest Paid: <span id="summary-total-interest">$0.00</span></span>
+                  <span>Debt Free: <span id="summary-debt-free">—</span></span>
+                </div>
+              </section>
+            </div>
+
+            <div id="schedule-tab" class="tab-group">
+              <section class="panel">
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <h2>Payment Schedule</h2>
+                  <p class="text-sm text-slate-500">Adjust the additional payment column to model extra payoff each month.</p>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="data-table text-xs md:text-sm">
+                    <thead id="schedule-head"></thead>
+                    <tbody id="schedule-body"></tbody>
+                  </table>
+                </div>
+                <p class="schedule-note">Results are estimates and assume monthly compounding.</p>
+              </section>
+            </div>
           </section>
         </section>
       </main>
