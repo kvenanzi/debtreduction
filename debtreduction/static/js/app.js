@@ -188,7 +188,8 @@ function renderSimulation() {
   if (!state.simulation) return;
   const { debts, months, totals } = state.simulation;
 
-  minPaymentsEl.textContent = formatCurrency(totals.minPaymentsSum);
+  const minimumPayment = totals.minimumMonthlyPayment ?? totals.minPaymentsSum;
+  minPaymentsEl.textContent = formatCurrency(minimumPayment);
   initialSnowballEl.textContent = formatCurrency(totals.initialSnowball);
   totalMonthsEl.textContent = totals.totalMonths;
   totalInterestEl.textContent = formatCurrency(totals.totalInterest);
