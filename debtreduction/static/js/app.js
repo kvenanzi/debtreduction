@@ -10,6 +10,11 @@ const totalInterestEl = document.getElementById("total-interest");
 const debtsCountEl = document.getElementById("debts-count");
 const scheduleHead = document.getElementById("schedule-head");
 const scheduleBody = document.getElementById("schedule-body");
+const strategyLabelEl = document.getElementById("strategy-label");
+const monthlyBudgetDisplayEl = document.getElementById("monthly-budget-display");
+const debtFreeDateEl = document.getElementById("debt-free-date");
+const summaryTotalInterestEl = document.getElementById("summary-total-interest");
+const summaryDebtFreeEl = document.getElementById("summary-debt-free");
 
 const state = {
   settings: null,
@@ -17,6 +22,13 @@ const state = {
   overrides: new Map(),
   simulation: null,
   chart: null,
+};
+
+const strategyLabels = {
+  avalanche: "Avalanche (Highest APR First)",
+  snowball: "Snowball (Lowest Balance First)",
+  entered: "Entered Order",
+  custom: "Custom Priority",
 };
 
 function formatCurrency(value) {
@@ -32,12 +44,9 @@ function showNotification(message, variant = "error") {
     return;
   }
 
-  const baseClasses = ["rounded-md", "px-4", "py-3", "text-sm", "border"];
-  notificationEl.className = baseClasses.join(" ");
+  notificationEl.className = "notification";
   if (variant === "success") {
-    notificationEl.classList.add("border-emerald-300", "bg-emerald-50", "text-emerald-700");
-  } else {
-    notificationEl.classList.add("border-red-300", "bg-red-50", "text-red-700");
+    notificationEl.classList.add("success");
   }
   notificationEl.textContent = message;
   notificationEl.classList.remove("hidden");
@@ -73,6 +82,8 @@ async function loadSettings() {
   settingsForm.elements.balanceDate.value = balanceDate;
   settingsForm.elements.monthlyBudget.value = Number.parseFloat(monthlyBudget).toFixed(2);
   settingsForm.elements.strategy.value = strategy;
+  monthlyBudgetDisplayEl.textContent = formatCurrency(monthlyBudget);
+  strategyLabelEl.textContent = strategyLabels[strategy] || strategy;
 }
 
 async function loadDebts() {
@@ -101,15 +112,21 @@ function renderDebts() {
   debtsTable.innerHTML = "";
   if (!state.debts.length) {
     const row = document.createElement("tr");
-    row.innerHTML = '<td colspan="6" class="px-3 py-4 text-center text-slate-500">No debts yet. Add your first debt to begin.</td>';
+    row.innerHTML = '<td colspan="7" class="px-3 py-4 text-center text-slate-500">No debts yet. Add your first debt to begin.</td>';
     debtsTable.appendChild(row);
     return;
   }
 
+  let balanceSum = 0;
+  let minimumSum = 0;
+
   state.debts.forEach((debt, index) => {
     const row = document.createElement("tr");
     row.dataset.id = debt.id;
+    balanceSum += Number.parseFloat(debt.balance) || 0;
+    minimumSum += Number.parseFloat(debt.minimumPayment) || 0;
     row.innerHTML = `
+      <td class="px-3 py-2 font-semibold text-slate-700">${index + 1}</td>
       <td class="px-3 py-2">
         <input name="creditor" value="${debt.creditor}" class="debt-input" />
       </td>
@@ -127,15 +144,28 @@ function renderDebts() {
       </td>
       <td class="px-3 py-2">
         <div class="flex flex-wrap gap-2 text-xs">
-          <button type="button" class="btn-action bg-emerald-600 text-white" data-action="save">Save</button>
-          <button type="button" class="btn-action bg-red-600 text-white" data-action="delete">Delete</button>
-          <button type="button" class="btn-action bg-slate-200 text-slate-700" data-action="up" ${index === 0 ? "disabled" : ""}>↑</button>
-          <button type="button" class="btn-action bg-slate-200 text-slate-700" data-action="down" ${index === state.debts.length - 1 ? "disabled" : ""}>↓</button>
+          <button type="button" class="btn-action" data-action="save">Save</button>
+          <button type="button" class="btn-action" data-action="delete">Delete</button>
+          <button type="button" class="btn-action" data-action="up" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button type="button" class="btn-action" data-action="down" ${index === state.debts.length - 1 ? "disabled" : ""}>↓</button>
         </div>
       </td>
     `;
     debtsTable.appendChild(row);
   });
+
+  const totalsRow = document.createElement("tr");
+  totalsRow.classList.add("table-total");
+  totalsRow.innerHTML = `
+    <td class="px-3 py-2">—</td>
+    <td class="px-3 py-2">Totals</td>
+    <td class="px-3 py-2">${formatCurrency(balanceSum)}</td>
+    <td class="px-3 py-2">—</td>
+    <td class="px-3 py-2">${formatCurrency(minimumSum)}</td>
+    <td class="px-3 py-2">—</td>
+    <td class="px-3 py-2"></td>
+  `;
+  debtsTable.appendChild(totalsRow);
 }
 
 function buildDebtPayload(row) {
@@ -163,6 +193,17 @@ function renderSimulation() {
   totalMonthsEl.textContent = totals.totalMonths;
   totalInterestEl.textContent = formatCurrency(totals.totalInterest);
   debtsCountEl.textContent = debts.length;
+
+  if (state.settings) {
+    const { strategy, monthlyBudget } = state.settings;
+    strategyLabelEl.textContent = strategyLabels[strategy] || strategy;
+    monthlyBudgetDisplayEl.textContent = formatCurrency(monthlyBudget);
+  }
+
+  const debtFreeLabel = months.length ? months[months.length - 1].monthLabel : "—";
+  debtFreeDateEl.textContent = debtFreeLabel;
+  summaryTotalInterestEl.textContent = formatCurrency(totals.totalInterest);
+  summaryDebtFreeEl.textContent = debtFreeLabel;
 
   summaryTable.innerHTML = "";
   if (debts.length === 0) {
@@ -212,8 +253,6 @@ function renderSchedule(months, debts) {
   });
   scheduleHead.appendChild(headerRow);
 
-  const debtsById = new Map(debtHeaders.map((item) => [item.id, item.label]));
-
   months.forEach((month) => {
     const row = document.createElement("tr");
     row.dataset.monthIndex = month.monthIndex;
@@ -258,7 +297,7 @@ function renderChart(months) {
             type: "bar",
             label: "Snowball",
             data: snowballData,
-            backgroundColor: "rgba(79, 70, 229, 0.6)",
+            backgroundColor: "rgba(22, 101, 52, 0.7)",
             borderRadius: 4,
             maxBarThickness: 30,
             yAxisID: "y",
@@ -267,7 +306,7 @@ function renderChart(months) {
             type: "line",
             label: "Interest",
             data: interestData,
-            borderColor: "rgba(16, 185, 129, 0.9)",
+            borderColor: "rgba(217, 119, 6, 0.9)",
             borderWidth: 2,
             fill: false,
             tension: 0.3,

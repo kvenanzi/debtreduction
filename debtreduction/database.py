@@ -9,7 +9,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker, declarative_base
 
 Base = declarative_base()
 SessionLocal = scoped_session(
-    sessionmaker(autocommit=False, autoflush=False, future=True)
+    sessionmaker(autocommit=False, autoflush=False, future=True, expire_on_commit=False)
 )
 
 _engine = None
