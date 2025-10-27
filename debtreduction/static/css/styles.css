@@ -379,6 +379,53 @@ table.data-table td:first-child {
   color: var(--sheet-primary-dark);
 }
 
+.table-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.table-prefix,
+.table-suffix {
+  position: absolute;
+  color: rgba(22, 101, 52, 0.6);
+  font-weight: 600;
+  font-size: 0.82rem;
+  pointer-events: none;
+}
+
+.table-prefix {
+  left: 0.55rem;
+}
+
+.table-suffix {
+  right: 0.55rem;
+}
+
+.table-field {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(22, 101, 52, 0.25);
+  padding: 0.4rem 0.65rem;
+  background: rgba(255, 255, 255, 0.95);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.table-field[data-format="currency"] {
+  padding-left: 1.2rem;
+}
+
+.table-field[data-format="percent"] {
+  padding-right: 1.2rem;
+}
+
+.table-field:focus {
+  outline: none;
+  border-color: var(--sheet-primary);
+  box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.18);
+}
+
 .tab-bar {
   display: inline-flex;
   gap: 0.75rem;
