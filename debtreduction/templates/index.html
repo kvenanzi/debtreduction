@@ -10,180 +10,224 @@
     />
     <link rel="stylesheet" href="/static/css/styles.css" />
   </head>
-  <body class="bg-slate-100 text-slate-900">
-    <div class="max-w-7xl mx-auto px-6 py-8">
-      <header class="flex flex-col gap-2 mb-8">
-        <h1 class="text-3xl font-bold text-slate-800">Debt Reduction Planner</h1>
-        <p class="text-slate-600">
-          Explore Avalanche, Snowball, Entered Order, and Custom strategies to accelerate
-          your debt payoff. Update inputs and recalculate instantly.
-        </p>
-        <div id="notification" class="hidden rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
-      </header>
+  <body class="app-body">
+    <div class="app-shell">
+      <main class="sheet">
+        <header class="sheet-header">
+          <h1 class="sheet-title">Debt Reduction Calculator</h1>
+          <p class="sheet-subtitle">
+            Enter your balances, rates, and monthly budget to visualise payoff timelines using
+            Avalanche, Snowball, Entered Order, or Custom strategies.
+          </p>
+          <div class="strategy-chip">Strategy: <span id="strategy-label">Avalanche (Highest APR First)</span></div>
+          <div id="notification" class="notification hidden"></div>
+        </header>
 
-      <section class="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <div class="space-y-6">
-          <div class="rounded-xl bg-white p-6 shadow">
-            <h2 class="mb-4 text-lg font-semibold text-slate-800">Settings</h2>
-            <form id="settings-form" class="space-y-4">
-              <div>
-                <label class="mb-1 block text-sm font-medium text-slate-600">Balance Date</label>
-                <input
-                  type="date"
-                  name="balanceDate"
-                  required
-                  class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-slate-600">Monthly Budget</label>
-                <input
-                  type="number"
-                  name="monthlyBudget"
-                  min="0"
-                  step="0.01"
-                  required
-                  class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                />
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-slate-600">Strategy</label>
-                <select
-                  name="strategy"
-                  class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                >
-                  <option value="avalanche">Avalanche (Highest APR First)</option>
-                  <option value="snowball">Snowball (Lowest Balance First)</option>
-                  <option value="entered">Entered Order</option>
-                  <option value="custom">Custom Priority</option>
-                </select>
-              </div>
-              <button
-                type="submit"
-                class="inline-flex w-full items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              >
-                Save Settings
-              </button>
-            </form>
-            <div class="mt-4 space-y-2 text-sm text-slate-600">
-              <div>Minimum payments total: <span id="min-payments" class="font-semibold text-slate-800">$0.00</span></div>
-              <div>Initial snowball: <span id="initial-snowball" class="font-semibold text-slate-800">$0.00</span></div>
-            </div>
-          </div>
-
-          <div class="rounded-xl bg-white p-6 shadow">
-            <h2 class="mb-4 text-lg font-semibold text-slate-800">Add Debt</h2>
-            <form id="debt-form" class="grid grid-cols-1 gap-4">
-              <div>
-                <label class="mb-1 block text-sm font-medium text-slate-600">Creditor</label>
-                <input name="creditor" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="mb-1 block text-sm font-medium text-slate-600">Balance ($)</label>
-                  <input type="number" step="0.01" min="0" name="balance" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+        <section class="sheet-grid">
+          <aside class="space-y-5">
+            <section class="panel">
+              <h2>Balance Date &amp; Budget</h2>
+              <form id="settings-form" class="space-y-4">
+                <div class="form-control">
+                  <label for="balanceDate">Balance Date</label>
+                  <input id="balanceDate" type="date" name="balanceDate" required class="input-field" />
                 </div>
-                <div>
-                  <label class="mb-1 block text-sm font-medium text-slate-600">APR (%)</label>
-                  <input type="number" step="0.01" min="0" name="apr" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                <div class="form-control">
+                  <label for="monthlyBudget">Monthly Payment</label>
+                  <input
+                    id="monthlyBudget"
+                    type="number"
+                    name="monthlyBudget"
+                    min="0"
+                    step="0.01"
+                    required
+                    class="input-field"
+                  />
                 </div>
+                <div class="form-control">
+                  <label for="strategy">Strategy</label>
+                  <select id="strategy" name="strategy" class="input-field">
+                    <option value="avalanche">Avalanche (Highest APR First)</option>
+                    <option value="snowball">Snowball (Lowest Balance First)</option>
+                    <option value="entered">Entered Order</option>
+                    <option value="custom">Custom Priority</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn-primary">Save Settings</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <h2>Payment Snapshot</h2>
+              <div class="stat-grid">
+                <article class="stat-tile">
+                  <h3>Monthly Payment</h3>
+                  <p id="monthly-budget-display">$0.00</p>
+                </article>
+                <article class="stat-tile">
+                  <h3>Minimum Payments</h3>
+                  <p id="min-payments">$0.00</p>
+                </article>
+                <article class="stat-tile">
+                  <h3>Initial Snowball</h3>
+                  <p id="initial-snowball">$0.00</p>
+                </article>
               </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="mb-1 block text-sm font-medium text-slate-600">Min Payment ($)</label>
-                  <input type="number" step="0.01" min="0" name="minimumPayment" required class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+            </section>
+
+            <section class="panel">
+              <h2>Add Creditor</h2>
+              <form id="debt-form" class="grid grid-cols-1 gap-4">
+                <div class="form-control">
+                  <label for="creditor">Creditor</label>
+                  <input id="creditor" name="creditor" required class="input-field" />
                 </div>
-                <div>
-                  <label class="mb-1 block text-sm font-medium text-slate-600">Custom Priority</label>
-                  <input type="number" step="1" min="1" name="customPriority" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="form-control">
+                    <label for="balance">Balance ($)</label>
+                    <input
+                      id="balance"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      name="balance"
+                      required
+                      class="input-field"
+                    />
+                  </div>
+                  <div class="form-control">
+                    <label for="apr">Rate (%)</label>
+                    <input
+                      id="apr"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      name="apr"
+                      required
+                      class="input-field"
+                    />
+                  </div>
                 </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="form-control">
+                    <label for="minimumPayment">Payment ($)</label>
+                    <input
+                      id="minimumPayment"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      name="minimumPayment"
+                      required
+                      class="input-field"
+                    />
+                  </div>
+                  <div class="form-control">
+                    <label for="customPriority">Custom Priority</label>
+                    <input
+                      id="customPriority"
+                      type="number"
+                      step="1"
+                      min="1"
+                      name="customPriority"
+                      class="input-field"
+                    />
+                  </div>
+                </div>
+                <button type="submit" class="btn-accent">Add Debt</button>
+              </form>
+            </section>
+          </aside>
+
+          <section class="space-y-5">
+            <section class="panel">
+              <div class="flex items-center justify-between flex-wrap gap-3">
+                <h2>Creditor Information Table</h2>
               </div>
-              <button type="submit" class="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300">
-                Add Debt
-              </button>
-            </form>
-          </div>
-        </div>
+              <div class="overflow-x-auto">
+                <table class="data-table text-sm">
+                  <thead>
+                    <tr>
+                      <th class="w-12">Row</th>
+                      <th>Creditor</th>
+                      <th>Balance</th>
+                      <th>Rate</th>
+                      <th>Payment</th>
+                      <th>Custom</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="debts-table"></tbody>
+                </table>
+              </div>
+            </section>
 
-        <div class="space-y-6">
-          <div class="rounded-xl bg-white p-6 shadow">
-            <div class="flex items-center justify-between">
-              <h2 class="text-lg font-semibold text-slate-800">Debts</h2>
+            <div class="stat-grid">
+              <article class="summary-card">
+                <h3>Total Payoff Months</h3>
+                <p id="total-months">0</p>
+              </article>
+              <article class="summary-card">
+                <h3>Total Interest Paid</h3>
+                <p id="total-interest">$0.00</p>
+              </article>
+              <article class="summary-card">
+                <h3>Debts Count</h3>
+                <p id="debts-count">0</p>
+              </article>
+              <article class="summary-card">
+                <h3>Debt Free Month</h3>
+                <p id="debt-free-date">—</p>
+              </article>
             </div>
-            <div class="mt-4 overflow-x-auto">
-              <table class="min-w-full divide-y divide-slate-200 text-sm">
-                <thead class="bg-slate-50">
-                  <tr>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Creditor</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Balance</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">APR</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Min Payment</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Priority</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="debts-table" class="divide-y divide-slate-200"></tbody>
-              </table>
-            </div>
-          </div>
 
-          <section class="grid gap-4 md:grid-cols-3" id="summary-cards">
-            <article class="summary-card">
-              <h3>Total Payoff Months</h3>
-              <p id="total-months">0</p>
-            </article>
-            <article class="summary-card">
-              <h3>Total Interest</h3>
-              <p id="total-interest">$0.00</p>
-            </article>
-            <article class="summary-card">
-              <h3>Debts Count</h3>
-              <p id="debts-count">0</p>
-            </article>
-          </section>
-
-          <div class="rounded-xl bg-white p-6 shadow">
-            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <h2 class="text-lg font-semibold text-slate-800">Snowball Growth</h2>
-              <p class="text-sm text-slate-500">Bars show snowball dollars; line shows monthly interest.</p>
-            </div>
-            <div class="mt-4">
+            <section class="panel">
+              <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <h2>Snowball Growth Chart</h2>
+                <p class="text-sm text-slate-500">
+                  Bars show your rolling snowball payment. The line tracks interest accrued each month.
+                </p>
+              </div>
               <canvas id="snowball-chart" height="220"></canvas>
-            </div>
-          </div>
+            </section>
 
-          <div class="rounded-xl bg-white p-6 shadow">
-            <h2 class="text-lg font-semibold text-slate-800">Debts Summary</h2>
-            <div class="mt-4 overflow-x-auto">
-              <table class="min-w-full divide-y divide-slate-200 text-sm">
-                <thead class="bg-slate-50">
-                  <tr>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Creditor</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Initial Balance</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Interest Paid</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Months to Payoff</th>
-                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Payoff Month</th>
-                  </tr>
-                </thead>
-                <tbody id="summary-table" class="divide-y divide-slate-200"></tbody>
-              </table>
-            </div>
-          </div>
+            <section class="panel">
+              <h2>Debts in Chosen Order</h2>
+              <div class="overflow-x-auto">
+                <table class="data-table text-sm">
+                  <thead>
+                    <tr>
+                      <th>Creditor</th>
+                      <th>Original Balance</th>
+                      <th>Interest Paid</th>
+                      <th>Months to Pay Off</th>
+                      <th>Month Paid Off</th>
+                    </tr>
+                  </thead>
+                  <tbody id="summary-table"></tbody>
+                </table>
+              </div>
+              <div class="table-footer">
+                <span>Total Interest Paid: <span id="summary-total-interest">$0.00</span></span>
+                <span>Debt Free: <span id="summary-debt-free">—</span></span>
+              </div>
+            </section>
 
-          <div class="rounded-xl bg-white p-6 shadow">
-            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <h2 class="text-lg font-semibold text-slate-800">Payment Schedule</h2>
-              <p class="text-sm text-slate-500">Adjust additional payments to see updated timelines.</p>
-            </div>
-            <div class="mt-4 overflow-x-auto">
-              <table class="min-w-full divide-y divide-slate-200 text-xs md:text-sm">
-                <thead class="bg-slate-50" id="schedule-head"></thead>
-                <tbody id="schedule-body" class="divide-y divide-slate-200"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
+            <section class="panel">
+              <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <h2>Payment Schedule</h2>
+                <p class="text-sm text-slate-500">Adjust the additional payment column to model extra payoff each month.</p>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="data-table text-xs md:text-sm">
+                  <thead id="schedule-head"></thead>
+                  <tbody id="schedule-body"></tbody>
+                </table>
+              </div>
+              <p class="schedule-note">Results are estimates and assume monthly compounding.</p>
+            </section>
+          </section>
+        </section>
+      </main>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="/static/js/app.js" type="module"></script>
