@@ -34,15 +34,19 @@
                 </div>
                 <div class="form-control">
                   <label for="monthlyBudget">Monthly Payment</label>
-                  <input
-                    id="monthlyBudget"
-                    type="number"
-                    name="monthlyBudget"
-                    min="0"
-                    step="0.01"
-                    required
-                    class="input-field"
-                  />
+                  <div class="currency-input">
+                    <span class="currency-prefix">$</span>
+                    <input
+                      id="monthlyBudget"
+                      type="number"
+                      name="monthlyBudget"
+                      min="0"
+                      step="0.01"
+                      required
+                      class="input-field currency-field"
+                    />
+                  </div>
+                  <button type="button" id="reset-budget" class="btn-reset">Reset to minimum</button>
                 </div>
                 <div class="form-control">
                   <label for="strategy">Strategy</label>
