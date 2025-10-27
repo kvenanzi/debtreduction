@@ -15,6 +15,8 @@ const monthlyBudgetDisplayEl = document.getElementById("monthly-budget-display")
 const debtFreeDateEl = document.getElementById("debt-free-date");
 const summaryTotalInterestEl = document.getElementById("summary-total-interest");
 const summaryDebtFreeEl = document.getElementById("summary-debt-free");
+const tabButtons = document.querySelectorAll(".tab-btn");
+const tabGroups = document.querySelectorAll(".tab-group");
 
 const state = {
   settings: null,
@@ -479,6 +481,21 @@ scheduleBody.addEventListener("change", async (event) => {
   } catch (error) {
     showNotification(error.message, "error");
   }
+});
+
+tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const target = button.dataset.target;
+    tabButtons.forEach((btn) => btn.classList.remove("is-active"));
+    tabGroups.forEach((group) => {
+      if (group.id === target) {
+        group.classList.add("is-active");
+      } else {
+        group.classList.remove("is-active");
+      }
+    });
+    button.classList.add("is-active");
+  });
 });
 
 settingsForm.addEventListener("submit", handleSettingsSubmit);
