@@ -367,9 +367,9 @@ table.data-table td:first-child {
 .notification {
   padding: 0.75rem 1rem;
   border-radius: 12px;
-  border: 1px solid rgba(185, 28, 28, 0.25);
-  background: rgba(254, 226, 226, 0.7);
-  color: #7f1d1d;
+  border: 1px solid transparent;
+  background: rgba(148, 163, 184, 0.25);
+  color: #1f2937;
   font-size: 0.9rem;
 }
 
@@ -377,6 +377,12 @@ table.data-table td:first-child {
   border-color: rgba(22, 163, 74, 0.25);
   background: rgba(220, 252, 231, 0.8);
   color: var(--sheet-primary-dark);
+}
+
+.notification.error {
+  border-color: rgba(185, 28, 28, 0.25);
+  background: rgba(254, 226, 226, 0.7);
+  color: #7f1d1d;
 }
 
 .table-input {

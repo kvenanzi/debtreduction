@@ -92,6 +92,8 @@ function showNotification(message, variant = "error") {
   notificationEl.className = "notification";
   if (variant === "success") {
     notificationEl.classList.add("success");
+  } else {
+    notificationEl.classList.add("error");
   }
   notificationEl.textContent = message;
   notificationEl.classList.remove("hidden");
