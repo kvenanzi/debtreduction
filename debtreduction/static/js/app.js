@@ -19,6 +19,7 @@ const tabButtons = document.querySelectorAll(".tab-btn");
 const tabGroups = document.querySelectorAll(".tab-group");
 const resetBudgetBtn = document.getElementById("reset-budget");
 const monthlyBudgetInput = settingsForm.elements.monthlyBudget;
+let monthlyBudgetManuallySet = false;
 
 const state = {
   settings: null,
@@ -185,7 +186,9 @@ async function ensureMinimumBudget() {
   }
 
   state.settings.monthlyBudget = normalized;
-  updateBudgetInputDisplay(normalized);
+  if (!monthlyBudgetManuallySet) {
+    updateBudgetInputDisplay(normalized);
+  }
   monthlyBudgetDisplayEl.textContent = formatCurrency(normalized);
 }
 
@@ -461,6 +464,7 @@ async function handleSettingsSubmit(event) {
     return;
   }
   payload.monthlyBudget = Number.parseFloat(budgetNumber.toFixed(2));
+  monthlyBudgetManuallySet = true;
 
   try {
     await fetchJSON("/api/settings", {
@@ -641,6 +645,7 @@ monthlyBudgetInput.addEventListener("blur", () => {
     return;
   }
   updateBudgetInputDisplay(value);
+  monthlyBudgetManuallySet = true;
 });
 
 monthlyBudgetInput.addEventListener("focus", () => {
@@ -653,6 +658,7 @@ async function initialise() {
     await loadDebts();
     await loadOverrides();
     await loadSimulation(false);
+    monthlyBudgetManuallySet = true;
   } catch (error) {
     showNotification(error.message, "error");
   }
