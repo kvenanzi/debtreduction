@@ -57,6 +57,8 @@ def test_simulation_avalanche_generates_schedule():
 
     final_month = result["months"][-1]
     assert final_month["monthIndex"] == result["totals"]["totalMonths"]
+    assert "remainingBalances" in result["months"][0]
+    assert "1" in result["months"][0]["remainingBalances"]
 
 
 def test_simulation_budget_validation():
@@ -111,6 +113,8 @@ def test_avalanche_known_payoff_timeline():
     assert months[0]["snowballAmount"] == "125.00"
     assert months[0]["interestAccrued"] == "2.00"
     assert months[0]["payments"] == {"1": "101.00", "2": "99.00"}
+    assert months[0]["remainingBalances"]["1"] == "0.00"
+    assert months[0]["remainingBalances"]["2"] == "102.00"
 
     # Month 2: freed minimum from Loan A rolls into Loan B
     assert months[1]["monthIndex"] == 2

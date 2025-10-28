@@ -144,24 +144,25 @@
 
           <section class="space-y-5">
             <section class="panel">
-              <div class="flex items-center justify-between flex-wrap gap-3">
-                <h2>Creditor Information Table</h2>
-              </div>
+              <h2>Debts in Chosen Order</h2>
               <div class="overflow-x-auto">
                 <table class="data-table text-sm">
                   <thead>
                     <tr>
-                      <th class="w-12">Row</th>
                       <th>Creditor</th>
-                      <th>Balance</th>
-                      <th>Rate</th>
-                      <th>Payment</th>
-                      <th>Custom</th>
-                      <th>Actions</th>
+                      <th>Original Balance</th>
+                      <th>Interest Paid</th>
+                      <th>Current Balance</th>
+                      <th>Months to Pay Off</th>
+                      <th>Month Paid Off</th>
                     </tr>
                   </thead>
-                  <tbody id="debts-table"></tbody>
+                  <tbody id="summary-table"></tbody>
                 </table>
+              </div>
+              <div class="table-footer">
+                <span>Total Interest Paid: <span id="summary-total-interest">$0.00</span></span>
+                <span>Debt Free: <span id="summary-debt-free">—</span></span>
               </div>
             </section>
 
@@ -192,6 +193,16 @@
             <div id="overview-tab" class="tab-group is-active">
               <section class="panel">
                 <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <h2>Cumulative Balance Trend</h2>
+                  <p class="text-sm text-slate-500">
+                    Tracks total outstanding principal across all debts by month.
+                  </p>
+                </div>
+                <canvas id="balance-chart" height="220"></canvas>
+              </section>
+
+              <section class="panel">
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <h2>Snowball Growth Chart</h2>
                   <p class="text-sm text-slate-500">
                     Bars show your rolling snowball payment. The line tracks interest accrued each month.
@@ -201,24 +212,24 @@
               </section>
 
               <section class="panel">
-                <h2>Debts in Chosen Order</h2>
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                  <h2>Creditor Information Table</h2>
+                </div>
                 <div class="overflow-x-auto">
                   <table class="data-table text-sm">
                     <thead>
                       <tr>
+                        <th class="w-12">Row</th>
                         <th>Creditor</th>
-                        <th>Original Balance</th>
-                        <th>Interest Paid</th>
-                        <th>Months to Pay Off</th>
-                        <th>Month Paid Off</th>
+                        <th>Balance</th>
+                        <th>Rate</th>
+                        <th>Payment</th>
+                        <th>Custom</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
-                    <tbody id="summary-table"></tbody>
+                    <tbody id="debts-table"></tbody>
                   </table>
-                </div>
-                <div class="table-footer">
-                  <span>Total Interest Paid: <span id="summary-total-interest">$0.00</span></span>
-                  <span>Debt Free: <span id="summary-debt-free">—</span></span>
                 </div>
               </section>
             </div>
