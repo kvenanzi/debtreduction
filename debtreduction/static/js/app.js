@@ -26,7 +26,8 @@ const state = {
   debts: [],
   overrides: new Map(),
   simulation: null,
-  chart: null,
+  snowballChart: null,
+  balanceChart: null,
 };
 
 const strategyLabels = {
@@ -314,16 +315,20 @@ function renderSimulation() {
   summaryTotalInterestEl.textContent = formatCurrency(totals.totalInterest);
   summaryDebtFreeEl.textContent = debtFreeLabel;
 
+  const currentBalances = computeCurrentBalances(months, debts);
+
   summaryTable.innerHTML = "";
   if (debts.length === 0) {
-    summaryTable.innerHTML = '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">Add debts to view the payoff summary.</td></tr>';
+    summaryTable.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-slate-500">Add debts to view the payoff summary.</td></tr>';
   } else {
     debts.forEach((debt) => {
+      const currentBalanceValue = currentBalances.get(debt.id) ?? parseCurrency(debt.initialBalance);
       const row = document.createElement("tr");
       row.innerHTML = `
         <td class="px-3 py-2">${debt.creditor}</td>
         <td class="px-3 py-2">${formatCurrency(debt.initialBalance)}</td>
         <td class="px-3 py-2">${formatCurrency(debt.interestPaid)}</td>
+        <td class="px-3 py-2">${formatCurrency(currentBalanceValue)}</td>
         <td class="px-3 py-2">${debt.monthsToPayoff}</td>
         <td class="px-3 py-2">${debt.payoffMonthLabel ?? "–"}</td>
       `;
@@ -333,6 +338,8 @@ function renderSimulation() {
 
   renderSchedule(months, debts);
   renderChart(months);
+  const balanceTrend = buildBalanceTrend(months);
+  renderBalanceChart(balanceTrend.labels, balanceTrend.values);
 }
 
 function renderSchedule(months, debts) {
@@ -396,8 +403,8 @@ function renderChart(months) {
   const snowballData = months.map((month) => Number.parseFloat(month.snowballAmount));
   const interestData = months.map((month) => Number.parseFloat(month.interestAccrued));
 
-  if (!state.chart) {
-    state.chart = new Chart(ctx, {
+  if (!state.snowballChart) {
+    state.snowballChart = new Chart(ctx, {
       type: "bar",
       data: {
         labels,
@@ -447,11 +454,122 @@ function renderChart(months) {
       },
     });
   } else {
-    state.chart.data.labels = labels;
-    state.chart.data.datasets[0].data = snowballData;
-    state.chart.data.datasets[1].data = interestData;
-    state.chart.update();
+    state.snowballChart.data.labels = labels;
+    state.snowballChart.data.datasets[0].data = snowballData;
+    state.snowballChart.data.datasets[1].data = interestData;
+    state.snowballChart.update();
   }
+}
+ 
+function renderBalanceChart(labels, data) {
+  const ctx = document.getElementById("balance-chart");
+  if (!ctx) return;
+
+  if (!state.balanceChart) {
+    state.balanceChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Total Balance Remaining",
+            data,
+            borderColor: "rgba(30, 64, 175, 0.85)",
+            backgroundColor: "rgba(30, 64, 175, 0.15)",
+            borderWidth: 2,
+            fill: true,
+            tension: 0.35,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            ticks: {
+              callback: (value) => formatCurrency(value),
+            },
+          },
+        },
+      },
+    });
+  } else {
+    state.balanceChart.data.labels = labels;
+    state.balanceChart.data.datasets[0].data = data;
+    state.balanceChart.update();
+  }
+}
+
+function formatMonthLabelFromISO(iso) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString(undefined, { month: "short", year: "numeric" });
+}
+
+function buildBalanceTrend(months) {
+  const labels = [];
+  const values = [];
+  const initialTotal = state.debts.reduce((sum, debt) => {
+    const value = parseCurrency(debt.balance ?? 0);
+    return sum + (Number.isNaN(value) ? 0 : value);
+  }, 0);
+
+  const startLabel = formatMonthLabelFromISO(state.settings?.balanceDate) || months[0]?.monthLabel || "Start";
+  labels.push(startLabel);
+  values.push(Number.parseFloat(initialTotal.toFixed(2)));
+
+  months.forEach((month) => {
+    const total = Object.values(month.remainingBalances || {}).reduce((sum, value) => {
+      const parsed = parseCurrency(value);
+      return sum + (Number.isNaN(parsed) ? 0 : parsed);
+    }, 0);
+    labels.push(month.monthLabel);
+    values.push(Number.parseFloat(total.toFixed(2)));
+  });
+
+  return { labels, values };
+}
+
+function computeCurrentBalances(months, debtsSummary) {
+  const map = new Map();
+  const today = new Date();
+  let paymentsApplied = 0;
+
+  for (const month of months) {
+    const monthDate = new Date(month.dateISO);
+    if (!Number.isNaN(monthDate.getTime()) && monthDate <= today) {
+      paymentsApplied = month.monthIndex;
+    } else {
+      break;
+    }
+  }
+
+  debtsSummary.forEach((debt) => {
+    const debtIdStr = String(debt.id);
+    let balanceValue;
+    if (paymentsApplied <= 0) {
+      const initial = parseCurrency(debt.initialBalance);
+      balanceValue = Number.isNaN(initial) ? 0 : initial;
+    } else {
+      const index = Math.min(paymentsApplied, months.length) - 1;
+      if (index >= 0 && months[index]?.remainingBalances) {
+        const snapshot = months[index].remainingBalances[debtIdStr];
+        const parsed = parseCurrency(snapshot);
+        balanceValue = Number.isNaN(parsed) ? 0 : parsed;
+      } else {
+        balanceValue = 0;
+      }
+    }
+
+    if (paymentsApplied >= months.length) {
+      balanceValue = 0;
+    }
+
+    map.set(debt.id, Number.parseFloat((balanceValue ?? 0).toFixed(2)));
+  });
+
+  return map;
 }
 
 async function handleSettingsSubmit(event) {

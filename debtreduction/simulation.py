@@ -228,6 +228,10 @@ def run_simulation(
                     str(debt_id): str(quantize(amount))
                     for debt_id, amount in payments_this_month.items()
                 },
+                "remainingBalances": {
+                    str(debt.id): str(quantize(debt.balance))
+                    for debt in debt_states
+                },
             }
         )
 
