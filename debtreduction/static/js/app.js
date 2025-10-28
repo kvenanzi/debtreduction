@@ -534,25 +534,28 @@ function buildBalanceTrend(months) {
 function computeCurrentBalances(months, debtsSummary) {
   const map = new Map();
   const today = new Date();
-  let paymentsApplied = 0;
+  let paymentsAppliedIndex = -1;
 
-  for (const month of months) {
-    const monthDate = new Date(month.dateISO);
-    if (!Number.isNaN(monthDate.getTime()) && monthDate <= today) {
-      paymentsApplied = month.monthIndex;
-    } else {
-      break;
+  const paymentDates = months.map((month) => {
+    const base = new Date(month.dateISO);
+    if (Number.isNaN(base.getTime())) return null;
+    return new Date(base.getFullYear(), base.getMonth() + 1, 1);
+  });
+
+  paymentDates.forEach((paymentDate, idx) => {
+    if (paymentDate && paymentDate <= today) {
+      paymentsAppliedIndex = idx;
     }
-  }
+  });
 
   debtsSummary.forEach((debt) => {
     const debtIdStr = String(debt.id);
     let balanceValue;
-    if (paymentsApplied <= 0) {
+    if (paymentsAppliedIndex < 0) {
       const initial = parseCurrency(debt.initialBalance);
       balanceValue = Number.isNaN(initial) ? 0 : initial;
     } else {
-      const index = Math.min(paymentsApplied, months.length) - 1;
+      const index = Math.min(paymentsAppliedIndex, months.length - 1);
       if (index >= 0 && months[index]?.remainingBalances) {
         const snapshot = months[index].remainingBalances[debtIdStr];
         const parsed = parseCurrency(snapshot);
@@ -562,7 +565,7 @@ function computeCurrentBalances(months, debtsSummary) {
       }
     }
 
-    if (paymentsApplied >= months.length) {
+    if (paymentsAppliedIndex >= months.length) {
       balanceValue = 0;
     }
 
