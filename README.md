@@ -1,21 +1,27 @@
 # Debt Reduction Planner
 
-Plan and visualise your debt payoff using Avalanche, Snowball, Entered Order, or Custom strategies. The app simulates monthly interest, minimum payments, snowball rollovers, and exposes charts for total balance remaining, snowball growth, and detailed schedules.
+Interactive web app for modelling and tracking debt payoff strategies. Enter each creditor, choose Avalanche, Snowball, Entered Order, or Custom priority, and see timelines, charts, and month-by-month schedules that update instantly.
 
-## Features
-- Creditor table with strategy-aware ordering, currency/percent formatting, and persistent storage (SQLite).
-- Simulation shows cumulative balance trend, snowball growth, current balance per debt, payoff timelines, and a month-by-month payment grid with extra payment support.
-- Responsive UI styled with Tailwind and Chart.js visualisations.
-- REST API (Flask) powers the HTMX/Alpine front end; results recompute on every change.
-- Named Docker volume keeps data safe across container restarts.
+## Highlights
+- Strategy-aware ordering with editable currency/percent fields and persistent storage (SQLite).
+- Monthly simulation with cumulative balance trend, snowball growth, current balance per debt, payoff dates, and an editable payment grid for extra contributions.
+- HTMX/Alpine-powered UI styled with Tailwind; charts rendered via Chart.js.
+- Named Docker volume keeps data between container restarts.
+
+## Stack
+- **Backend:** Flask + SQLAlchemy (SQLite persistence)
+- **Frontend:** HTMX, Alpine.js, Tailwind CSS, Chart.js
+- **Tests:** pytest
 
 ## Getting Started
 
-### Local Setup
+### Local Development
 ```bash
 pip install -r requirements.txt
 python3 app.py  # http://127.0.0.1:5000
 ```
+
+The first run creates `instance/data.db` (ignored by git) to hold settings, debts, and overrides.
 
 ### Run Tests
 ```bash
@@ -29,7 +35,7 @@ Build locally:
 docker build -t ghcr.io/kvenanzi/debtreduction:latest .
 ```
 
-Or pull the published image and run via compose:
+Or pull a published image and run via compose:
 ```bash
 docker compose pull
 docker compose up -d  # http://localhost:5000
@@ -37,25 +43,21 @@ docker compose up -d  # http://localhost:5000
 
 The compose file mounts a named volume `instance-data:/app/instance` so the SQLite database survives container restarts.
 
-## Publish to GHCR
-```bash
-echo $GH_PAT | docker login ghcr.io -u kvenanzi --password-stdin
-docker build -t ghcr.io/kvenanzi/debtreduction:latest .
-docker push ghcr.io/kvenanzi/debtreduction:latest
-```
+To publish to your own registry, build/tag the image and push with your registry credentials, then update `docker-compose.yml` to reference that image.
 
 ## Project Structure
 - `app.py` – Flask entry point.
-- `debtreduction/` – blueprints, models, simulation engine, static assets, templates.
-- `tests/` – pytest coverage for strategy ordering and amortisation.
-- `docker-compose.yml` / `Dockerfile` – container and deployment configuration.
+- `debtreduction/` – API routes, simulation engine, models, templates, static assets.
+- `tests/` – pytest coverage for the payoff engine and ordering rules.
+- `docker-compose.yml` / `Dockerfile` – container configuration.
+- `instance/` – runtime data folder (contains `data.db`, ignored by git).
 
 ## Configuration Notes
-- Settings, debts, and schedule overrides persist in `instance/data.db`.
-- Default simulation starts from the saved balance date; edit strategy, monthly budget, or additional payments to see immediate recalculations.
+- Simulation starts from the saved balance date; adjust strategy, monthly budget, or additional payments to see immediate recalculations.
+- All monetary values are handled as `Decimal` in the backend; the UI enforces currency/percent formatting when editing.
 
 ## Contributing
-- Open issues/PRs welcome. Please add or update tests for simulation logic, run `python3 -m pytest`, and include screenshots for UI changes when possible.
+Pull requests and issues are welcome. Please add/update tests for simulation logic, run `python3 -m pytest`, and include screenshots for UI changes when relevant.
 
 ## License
 MIT License © 2025 Kevin Venanzi
