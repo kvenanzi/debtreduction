@@ -176,23 +176,28 @@ async function ensureMinimumBudget() {
   }
 
   const currentBudget = parseCurrency(state.settings.monthlyBudget);
-  if (!Number.isFinite(currentBudget) || Math.abs(currentBudget - normalized) > 0.009) {
+  const needsUpdate =
+    !Number.isFinite(currentBudget) || currentBudget + 0.009 < normalized;
+
+  if (needsUpdate) {
     const updated = await fetchJSON("/api/settings", {
       method: "PUT",
       body: JSON.stringify({ monthlyBudget: normalized }),
     });
     const updatedBudget = parseCurrency(updated.monthlyBudget);
-    state.settings = { ...state.settings, ...updated, monthlyBudget: updatedBudget };
-    updateBudgetInputDisplay(updatedBudget);
-    monthlyBudgetDisplayEl.textContent = formatCurrency(updatedBudget);
+    const appliedBudget = Number.isFinite(updatedBudget) ? updatedBudget : normalized;
+    state.settings = { ...state.settings, ...updated, monthlyBudget: appliedBudget };
+    updateBudgetInputDisplay(appliedBudget);
+    monthlyBudgetDisplayEl.textContent = formatCurrency(appliedBudget);
     return;
   }
 
-  state.settings.monthlyBudget = normalized;
+  const appliedBudget = Number.isFinite(currentBudget) ? currentBudget : normalized;
+  state.settings.monthlyBudget = appliedBudget;
   if (!monthlyBudgetManuallySet) {
-    updateBudgetInputDisplay(normalized);
+    updateBudgetInputDisplay(appliedBudget);
   }
-  monthlyBudgetDisplayEl.textContent = formatCurrency(normalized);
+  monthlyBudgetDisplayEl.textContent = formatCurrency(appliedBudget);
 }
 
 function renderDebts() {
