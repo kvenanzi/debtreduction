@@ -245,44 +245,14 @@ def run_simulation(
         total_final = quantize(sum(final_payments.values()))
 
         if total_final > total_default:
-            excess = quantize(total_final - total_default)
-            for debt in ordered_states:
-                if excess <= Decimal("0.00"):
-                    break
-                if debt.id in overrides_for_month:
-                    continue
-                current_payment = final_payments.get(debt.id, Decimal("0.00"))
-                if current_payment <= Decimal("0.00"):
-                    continue
-                reduction = min(current_payment, excess)
-                if reduction <= Decimal("0.00"):
-                    continue
-                final_payments[debt.id] = quantize(current_payment - reduction)
-                excess = quantize(excess - reduction)
-            if excess > Decimal("0.00"):
+            excess_amount = quantize(total_final - total_default)
+            if excess_amount > Decimal("0.00"):
+                excess_display = f"${excess_amount:.2f}"
                 month_warnings.append(
-                    "Overrides require more funds than available; total payment increased."
+                    f"Overrides require more funds than available; need an additional {excess_display}."
                 )
         elif total_final < total_default:
             deficit = quantize(total_default - total_final)
-            for debt in ordered_states:
-                if deficit <= Decimal("0.00"):
-                    break
-                if debt.id in overrides_for_month:
-                    continue
-                capacity = quantize(
-                    balances_after_interest.get(debt.id, Decimal("0.00"))
-                    - final_payments.get(debt.id, Decimal("0.00"))
-                )
-                if capacity <= Decimal("0.00"):
-                    continue
-                addition = min(capacity, deficit)
-                if addition <= Decimal("0.00"):
-                    continue
-                final_payments[debt.id] = quantize(
-                    final_payments.get(debt.id, Decimal("0.00")) + addition
-                )
-                deficit = quantize(deficit - addition)
             if deficit > Decimal("0.00"):
                 month_warnings.append(
                     "Overrides reduced payments; remaining budget left unallocated."
@@ -314,6 +284,10 @@ def run_simulation(
                 "interestAccrued": str(quantize(interest_accrued_this_month)),
                 "snowballAmount": str(quantize(available_pool)),
                 "additionalAmount": str(quantize(additional_amount)),
+                "defaultPayments": {
+                    str(debt_id): str(quantize(amount))
+                    for debt_id, amount in default_payments.items()
+                },
                 "payments": {
                     str(debt_id): str(quantize(amount))
                     for debt_id, amount in payments_this_month.items()

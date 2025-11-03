@@ -131,7 +131,7 @@ def test_avalanche_known_payoff_timeline():
     assert debts_summary[1]["payoffMonthLabel"] == "Feb 2024"
 
 
-def test_payment_override_reallocates_shortfall():
+def test_payment_override_shortfall_warns_without_reallocation():
     settings = make_settings("avalanche", "200.00")
     debts = [
         make_debt(1, "Loan A", "100.00", 12.0, "50.00", position=0),
@@ -146,8 +146,9 @@ def test_payment_override_reallocates_shortfall():
 
     month1 = result["months"][0]
     assert month1["payments"]["1"] == "95.00"
-    assert month1["payments"]["2"] == "105.00"
-    assert "paymentOverrideWarnings" not in month1
+    assert month1["payments"]["2"] == "99.00"
+    warnings = month1.get("paymentOverrideWarnings", [])
+    assert any("unallocated" in message.lower() for message in warnings)
 
 
 def test_payment_override_caps_at_balance():
@@ -188,3 +189,34 @@ def test_payment_override_zero_payment_allows_unallocated_budget():
     assert month1["payments"]["1"] == "101.00"
     warnings = month1.get("paymentOverrideWarnings", [])
     assert any("unallocated" in message.lower() for message in warnings)
+
+
+def test_payment_overrides_exceed_budget_include_shortfall_amount():
+    settings = make_settings("avalanche", "200.00")
+    debts = [
+        make_debt(1, "Loan A", "1000.00", 12.0, "50.00", position=0),
+        make_debt(2, "Loan B", "1000.00", 6.0, "50.00", position=1),
+    ]
+
+    baseline = run_simulation(settings, debts, [])
+
+    payment_overrides = [
+        PaymentOverride(month_index=1, debt_id=1, amount=Decimal("150.00")),
+        PaymentOverride(month_index=1, debt_id=2, amount=Decimal("150.00")),
+    ]
+
+    result = run_simulation(settings, debts, [], payment_overrides)
+
+    month1 = result["months"][0]
+    warnings = month1.get("paymentOverrideWarnings", [])
+    assert warnings, "Expected warning when overrides exceed budget."
+
+    baseline_month1 = baseline["months"][0]
+    default_total = sum(Decimal(value) for value in baseline_month1["payments"].values())
+    override_total = sum(Decimal(value) for value in month1["payments"].values())
+    shortfall = (override_total - default_total).quantize(Decimal("0.01"))
+
+    expected_message = (
+        f"Overrides require more funds than available; need an additional ${shortfall:.2f}."
+    )
+    assert expected_message in warnings

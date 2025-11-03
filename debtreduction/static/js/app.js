@@ -418,8 +418,20 @@ function renderSchedule(months, debts) {
       state.scheduleOverrides.get(month.monthIndex) ?? month.additionalAmount ?? 0;
     const overridesValue = Number.parseFloat(overrideRaw);
     const overrideDisplay = Number.isNaN(overridesValue) ? "0.00" : overridesValue.toFixed(2);
-    const overridesForMonth = state.paymentOverrides.get(month.monthIndex);
-    const overrideCount = overridesForMonth ? overridesForMonth.size : 0;
+    const defaultPayments = month.defaultPayments || {};
+    let overrideCount = 0;
+    debtHeaders.forEach((header) => {
+      const debtId = header.id;
+      const defaultPayment = defaultPayments[debtId] ?? "0.00";
+      const actualPayment = month.payments?.[debtId] ?? "0.00";
+      if (defaultPayment !== actualPayment) {
+        overrideCount += 1;
+      }
+    });
+    if (!overrideCount) {
+      const overridesForMonth = state.paymentOverrides.get(month.monthIndex);
+      overrideCount = overridesForMonth ? overridesForMonth.size : 0;
+    }
     const overrideLabel =
       overrideCount > 0
         ? `${overrideCount} override${overrideCount > 1 ? "s" : ""}`
@@ -668,15 +680,19 @@ function openActualsModal(month) {
 
   state.debts.forEach((debt) => {
     const debtId = debt.id;
-    const planRaw = month.payments?.[String(debtId)] ?? "0.00";
+    const planRaw =
+      month.defaultPayments?.[String(debtId)] ??
+      month.payments?.[String(debtId)] ??
+      "0.00";
     const planValue = parseCurrency(planRaw);
+    const normalizedPlan = Number.isFinite(planValue)
+      ? Number.parseFloat(planValue.toFixed(2))
+      : 0;
     const overrideValue = overrides?.get(debtId);
     const displayValue =
       typeof overrideValue === "number" && Number.isFinite(overrideValue)
         ? overrideValue
-        : Number.isNaN(planValue)
-        ? 0
-        : planValue;
+        : normalizedPlan;
 
     const rowEl = document.createElement("div");
     rowEl.className = "actual-row";
@@ -707,6 +723,7 @@ function openActualsModal(month) {
     inputEl.min = "0";
     inputEl.className = "actual-input";
     inputEl.dataset.debtId = debtId;
+    inputEl.dataset.planAmount = normalizedPlan.toFixed(2);
     inputEl.value = Number.isFinite(displayValue) ? displayValue.toFixed(2) : "0.00";
 
     inputGroup.append(prefixEl, inputEl);
@@ -745,9 +762,21 @@ async function handleActualsSubmit(event) {
       showNotification("Enter non-negative amounts for all debts.", "error");
       return;
     }
+    const normalizedAmount = Number.parseFloat(parsed.toFixed(2));
+    const planAmountRaw = input.dataset.planAmount ?? "0.00";
+    const planAmountParsed = Number.parseFloat(planAmountRaw);
+    const planFixed = Number.isFinite(planAmountParsed)
+      ? planAmountParsed.toFixed(2)
+      : "0.00";
+    const amountFixed = normalizedAmount.toFixed(2);
+
+    if (amountFixed === planFixed) {
+      continue;
+    }
+
     overridesPayload.push({
       debtId,
-      amount: Number.parseFloat(parsed.toFixed(2)),
+      amount: normalizedAmount,
     });
   }
 
