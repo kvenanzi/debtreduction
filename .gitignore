@@ -18,3 +18,4 @@ dist/
 instance/*.db
 instance/*.sqlite
 instance/data.db
+build_and_push.sh
