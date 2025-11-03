@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from debtreduction.models import Debt, ScheduleOverride, Setting
+from debtreduction.models import Debt, PaymentOverride, ScheduleOverride, Setting
 from debtreduction.simulation import SimulationError, run_simulation
 
 
@@ -129,3 +129,62 @@ def test_avalanche_known_payoff_timeline():
     assert debts_summary[0]["payoffMonthLabel"] == "Jan 2024"
     assert debts_summary[1]["monthsToPayoff"] == 2
     assert debts_summary[1]["payoffMonthLabel"] == "Feb 2024"
+
+
+def test_payment_override_reallocates_shortfall():
+    settings = make_settings("avalanche", "200.00")
+    debts = [
+        make_debt(1, "Loan A", "100.00", 12.0, "50.00", position=0),
+        make_debt(2, "Loan B", "200.00", 6.0, "25.00", position=1),
+    ]
+
+    payment_overrides = [
+        PaymentOverride(month_index=1, debt_id=1, amount=Decimal("95.00")),
+    ]
+
+    result = run_simulation(settings, debts, [], payment_overrides)
+
+    month1 = result["months"][0]
+    assert month1["payments"]["1"] == "95.00"
+    assert month1["payments"]["2"] == "105.00"
+    assert "paymentOverrideWarnings" not in month1
+
+
+def test_payment_override_caps_at_balance():
+    settings = make_settings("avalanche", "200.00")
+    debts = [
+        make_debt(1, "Loan A", "100.00", 12.0, "50.00", position=0),
+        make_debt(2, "Loan B", "200.00", 6.0, "25.00", position=1),
+    ]
+
+    payment_overrides = [
+        PaymentOverride(month_index=1, debt_id=1, amount=Decimal("150.00")),
+    ]
+
+    result = run_simulation(settings, debts, [], payment_overrides)
+
+    month1 = result["months"][0]
+    assert month1["payments"]["1"] == "101.00"
+    assert month1["payments"]["2"] == "99.00"
+    warnings = month1.get("paymentOverrideWarnings", [])
+    assert any("capped" in message.lower() for message in warnings)
+
+
+def test_payment_override_zero_payment_allows_unallocated_budget():
+    settings = make_settings("avalanche", "200.00")
+    debts = [
+        make_debt(1, "Loan A", "100.00", 12.0, "50.00", position=0),
+        make_debt(2, "Loan B", "200.00", 6.0, "25.00", position=1),
+    ]
+
+    payment_overrides = [
+        PaymentOverride(month_index=1, debt_id=2, amount=Decimal("0.00")),
+    ]
+
+    result = run_simulation(settings, debts, [], payment_overrides)
+
+    month1 = result["months"][0]
+    assert month1["payments"]["2"] == "0.00"
+    assert month1["payments"]["1"] == "101.00"
+    warnings = month1.get("paymentOverrideWarnings", [])
+    assert any("unallocated" in message.lower() for message in warnings)

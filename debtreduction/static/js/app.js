@@ -19,15 +19,24 @@ const tabButtons = document.querySelectorAll(".tab-btn");
 const tabGroups = document.querySelectorAll(".tab-group");
 const resetBudgetBtn = document.getElementById("reset-budget");
 const monthlyBudgetInput = settingsForm.elements.monthlyBudget;
+const actualsModal = document.getElementById("actuals-modal");
+const actualsForm = document.getElementById("actuals-form");
+const actualsList = document.getElementById("actuals-list");
+const actualsTitle = document.getElementById("actuals-modal-title");
+const actualsMonthInput = document.getElementById("actuals-month-index");
+const actualsClearBtn = document.getElementById("actuals-clear");
+const modalDismissButtons = document.querySelectorAll('[data-dismiss="actuals-modal"]');
 let monthlyBudgetManuallySet = false;
 
 const state = {
   settings: null,
   debts: [],
-  overrides: new Map(),
+  scheduleOverrides: new Map(),
+  paymentOverrides: new Map(),
   simulation: null,
   snowballChart: null,
   balanceChart: null,
+  activeActualsMonth: null,
 };
 
 const strategyLabels = {
@@ -142,13 +151,37 @@ async function loadDebts() {
   renderDebts();
 }
 
-async function loadOverrides() {
+async function loadScheduleOverrides() {
   const overrides = await fetchJSON("/api/schedule-overrides");
-  state.overrides = new Map(overrides.map((item) => [item.monthIndex, item.additionalAmount]));
+  state.scheduleOverrides = new Map(
+    overrides.map((item) => [item.monthIndex, item.additionalAmount])
+  );
+}
+
+async function loadPaymentOverrides() {
+  const overrides = await fetchJSON("/api/payment-overrides");
+  const grouped = new Map();
+  overrides.forEach((item) => {
+    const monthIndex = Number.parseInt(item.monthIndex, 10);
+    const debtId = Number.parseInt(item.debtId, 10);
+    const amount = Number.parseFloat(item.amount);
+    if (!Number.isFinite(monthIndex) || !Number.isFinite(debtId)) {
+      return;
+    }
+    const normalized = Number.isNaN(amount)
+      ? 0
+      : Number.parseFloat(amount.toFixed(2));
+    if (!grouped.has(monthIndex)) {
+      grouped.set(monthIndex, new Map());
+    }
+    grouped.get(monthIndex).set(debtId, normalized);
+  });
+  state.paymentOverrides = grouped;
 }
 
 async function loadSimulation(showToast = true) {
   try {
+    await loadPaymentOverrides();
     state.simulation = await fetchJSON("/api/simulation");
     renderSimulation();
     if (showToast) {
@@ -354,7 +387,8 @@ function renderSchedule(months, debts) {
   scheduleBody.innerHTML = "";
 
   if (!months.length) {
-    scheduleBody.innerHTML = '<tr><td colspan="4" class="px-3 py-4 text-center text-slate-500">Add debts to generate a schedule.</td></tr>';
+    scheduleBody.innerHTML =
+      '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">Add debts to generate a schedule.</td></tr>';
     return;
   }
 
@@ -365,6 +399,7 @@ function renderSchedule(months, debts) {
     "Month",
     "Snowball",
     "Additional",
+    "Actuals",
     ...debtHeaders.map((item) => item.label),
   ];
 
@@ -379,9 +414,26 @@ function renderSchedule(months, debts) {
   months.forEach((month) => {
     const row = document.createElement("tr");
     row.dataset.monthIndex = month.monthIndex;
-    const overrideRaw = state.overrides.get(month.monthIndex) ?? month.additionalAmount ?? 0;
+    const overrideRaw =
+      state.scheduleOverrides.get(month.monthIndex) ?? month.additionalAmount ?? 0;
     const overridesValue = Number.parseFloat(overrideRaw);
     const overrideDisplay = Number.isNaN(overridesValue) ? "0.00" : overridesValue.toFixed(2);
+    const overridesForMonth = state.paymentOverrides.get(month.monthIndex);
+    const overrideCount = overridesForMonth ? overridesForMonth.size : 0;
+    const overrideLabel =
+      overrideCount > 0
+        ? `${overrideCount} override${overrideCount > 1 ? "s" : ""}`
+        : "Default";
+    const totalActual = Object.values(month.payments || {}).reduce((sum, value) => {
+      const parsed = parseCurrency(value);
+      return sum + (Number.isNaN(parsed) ? 0 : parsed);
+    }, 0);
+    const warnings = Array.isArray(month.paymentOverrideWarnings)
+      ? month.paymentOverrideWarnings
+      : [];
+    const warningsMarkup = warnings
+      .map((message) => `<p class="override-warning">${message}</p>`)
+      .join("");
 
     row.innerHTML = `
       <td class="px-3 py-2 font-semibold text-slate-700">${month.monthIndex}</td>
@@ -389,6 +441,14 @@ function renderSchedule(months, debts) {
       <td class="px-3 py-2">${formatCurrency(month.snowballAmount)}</td>
       <td class="px-3 py-2">
         <input type="number" class="additional-input" step="0.01" min="0" value="${overrideDisplay}" />
+      </td>
+      <td class="px-3 py-2">
+        <div class="actual-controls">
+          <button type="button" class="btn-action edit-actual-btn">Edit actuals</button>
+          <span class="override-pill${overrideCount ? "" : " is-muted"}">${overrideLabel}</span>
+        </div>
+        <p class="actual-total">Total: ${formatCurrency(totalActual)}</p>
+        ${warningsMarkup}
       </td>
     `;
 
@@ -582,6 +642,148 @@ function computeCurrentBalances(months, debtsSummary) {
   return map;
 }
 
+function closeActualsModal() {
+  if (!actualsModal) return;
+  actualsModal.classList.add("hidden");
+  actualsModal.setAttribute("aria-hidden", "true");
+  actualsList.innerHTML = "";
+  state.activeActualsMonth = null;
+  if (actualsForm) {
+    actualsForm.reset();
+  }
+  document.body.classList.remove("modal-open");
+}
+
+function openActualsModal(month) {
+  if (!actualsModal || !actualsForm) return;
+  state.activeActualsMonth = month.monthIndex;
+  if (actualsTitle) {
+    actualsTitle.textContent = `Actual Payments — ${month.monthLabel}`;
+  }
+  if (actualsMonthInput) {
+    actualsMonthInput.value = month.monthIndex;
+  }
+  actualsList.innerHTML = "";
+  const overrides = state.paymentOverrides.get(month.monthIndex);
+
+  state.debts.forEach((debt) => {
+    const debtId = debt.id;
+    const planRaw = month.payments?.[String(debtId)] ?? "0.00";
+    const planValue = parseCurrency(planRaw);
+    const overrideValue = overrides?.get(debtId);
+    const displayValue =
+      typeof overrideValue === "number" && Number.isFinite(overrideValue)
+        ? overrideValue
+        : Number.isNaN(planValue)
+        ? 0
+        : planValue;
+
+    const rowEl = document.createElement("div");
+    rowEl.className = "actual-row";
+
+    const headerEl = document.createElement("div");
+    headerEl.className = "actual-row-header";
+
+    const labelEl = document.createElement("span");
+    labelEl.className = "actual-label";
+    labelEl.textContent = debt.creditor;
+
+    const planEl = document.createElement("span");
+    planEl.className = "actual-plan";
+    planEl.textContent = `Planned ${formatCurrency(planValue)}`;
+
+    headerEl.append(labelEl, planEl);
+
+    const inputGroup = document.createElement("div");
+    inputGroup.className = "actual-input-group";
+
+    const prefixEl = document.createElement("span");
+    prefixEl.className = "actual-input-prefix";
+    prefixEl.textContent = "$";
+
+    const inputEl = document.createElement("input");
+    inputEl.type = "number";
+    inputEl.step = "0.01";
+    inputEl.min = "0";
+    inputEl.className = "actual-input";
+    inputEl.dataset.debtId = debtId;
+    inputEl.value = Number.isFinite(displayValue) ? displayValue.toFixed(2) : "0.00";
+
+    inputGroup.append(prefixEl, inputEl);
+    rowEl.append(headerEl, inputGroup);
+    actualsList.appendChild(rowEl);
+  });
+
+  actualsModal.classList.remove("hidden");
+  actualsModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  const firstInput = actualsList.querySelector(".actual-input");
+  if (firstInput) {
+    firstInput.focus();
+    firstInput.select();
+  }
+}
+
+async function handleActualsSubmit(event) {
+  event.preventDefault();
+  if (!actualsMonthInput) return;
+  const monthIndex = Number.parseInt(actualsMonthInput.value, 10);
+  if (!Number.isFinite(monthIndex) || monthIndex <= 0) {
+    showNotification("Invalid month selected.", "error");
+    return;
+  }
+
+  const inputs = Array.from(actualsList.querySelectorAll(".actual-input"));
+  const overridesPayload = [];
+
+  for (const input of inputs) {
+    const debtId = Number.parseInt(input.dataset.debtId, 10);
+    if (!Number.isFinite(debtId)) continue;
+    const parsed = Number.parseFloat(input.value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      showNotification("Enter non-negative amounts for all debts.", "error");
+      return;
+    }
+    overridesPayload.push({
+      debtId,
+      amount: Number.parseFloat(parsed.toFixed(2)),
+    });
+  }
+
+  try {
+    await fetchJSON("/api/payment-overrides/bulk", {
+      method: "PUT",
+      body: JSON.stringify({ monthIndex, overrides: overridesPayload }),
+    });
+    await loadSimulation(false);
+    showNotification("Actual payments saved.", "success");
+    closeActualsModal();
+  } catch (error) {
+    showNotification(error.message, "error");
+  }
+}
+
+async function handleActualsClear() {
+  if (!actualsMonthInput) return;
+  const monthIndex = Number.parseInt(actualsMonthInput.value, 10);
+  if (!Number.isFinite(monthIndex) || monthIndex <= 0) {
+    showNotification("Invalid month selected.", "error");
+    return;
+  }
+  try {
+    await fetchJSON("/api/payment-overrides/bulk", {
+      method: "PUT",
+      body: JSON.stringify({ monthIndex, overrides: [] }),
+    });
+    await loadSimulation(false);
+    showNotification("Actual payment overrides cleared.", "success");
+    closeActualsModal();
+  } catch (error) {
+    showNotification(error.message, "error");
+  }
+}
+
 async function handleSettingsSubmit(event) {
   event.preventDefault();
   const formData = new FormData(settingsForm);
@@ -689,9 +891,23 @@ scheduleBody.addEventListener("change", async (event) => {
       method: "PUT",
       body: JSON.stringify({ additionalAmount: value }),
     });
-    await Promise.all([loadOverrides(), loadSimulation(true)]);
+    await Promise.all([loadScheduleOverrides(), loadSimulation(true)]);
   } catch (error) {
     showNotification(error.message, "error");
+  }
+});
+
+scheduleBody.addEventListener("click", (event) => {
+  const button = event.target.closest(".edit-actual-btn");
+  if (!button) return;
+  const row = button.closest("tr");
+  if (!row) return;
+  const monthIndex = Number.parseInt(row.dataset.monthIndex, 10);
+  if (!Number.isFinite(monthIndex)) return;
+  const month =
+    state.simulation?.months?.find((item) => item.monthIndex === monthIndex) ?? null;
+  if (month) {
+    openActualsModal(month);
   }
 });
 
@@ -720,6 +936,30 @@ debtsTable.addEventListener("focusout", (event) => {
   } else if (format === "percent") {
     const value = parsePercent(input.value);
     input.value = Number.isNaN(value) ? "" : formatPercentInput(value);
+  }
+});
+
+actualsForm?.addEventListener("submit", handleActualsSubmit);
+actualsClearBtn?.addEventListener("click", (event) => {
+  event.preventDefault();
+  handleActualsClear();
+});
+modalDismissButtons.forEach((button) => {
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    closeActualsModal();
+  });
+});
+
+actualsModal?.addEventListener("click", (event) => {
+  if (event.target === actualsModal) {
+    closeActualsModal();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && actualsModal && !actualsModal.classList.contains("hidden")) {
+    closeActualsModal();
   }
 });
 
@@ -784,7 +1024,7 @@ async function initialise() {
   try {
     await loadSettings();
     await loadDebts();
-    await loadOverrides();
+    await loadScheduleOverrides();
     await loadSimulation(false);
     monthlyBudgetManuallySet = true;
   } catch (error) {

@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Column, Date, Float, Integer, Numeric, String
+from sqlalchemy import Column, Date, Float, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy.orm import relationship
 
 from .database import Base
 
@@ -61,4 +62,28 @@ class ScheduleOverride(Base):
         return {
             "monthIndex": self.month_index,
             "additionalAmount": str(self.additional_amount),
+        }
+
+
+class PaymentOverride(Base):
+    __tablename__ = "payment_overrides"
+    __table_args__ = (
+        UniqueConstraint("month_index", "debt_id", name="uix_payment_override_month_debt"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    month_index = Column(Integer, nullable=False)
+    debt_id = Column(Integer, ForeignKey("debts.id", ondelete="CASCADE"), nullable=False)
+    amount = Column(DECIMAL_TYPE, nullable=False)
+    note = Column(String(255), nullable=True)
+
+    debt = relationship("Debt", backref="payment_overrides")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "monthIndex": self.month_index,
+            "debtId": self.debt_id,
+            "amount": str(self.amount),
+            "note": self.note,
         }

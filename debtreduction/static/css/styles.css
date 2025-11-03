@@ -475,3 +475,233 @@ table.data-table td:first-child {
 .tab-group.is-active {
   display: flex;
 }
+
+.actual-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.override-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(22, 101, 52, 0.14);
+  color: var(--sheet-primary-dark);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.override-pill.is-muted {
+  background: rgba(148, 163, 184, 0.25);
+  color: rgba(71, 85, 105, 0.9);
+}
+
+.actual-total {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  color: rgba(15, 23, 42, 0.62);
+}
+
+.override-warning {
+  margin-top: 0.35rem;
+  font-size: 0.74rem;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(4px);
+  z-index: 120;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-panel {
+  width: min(520px, 100%);
+  max-height: 90vh;
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 32px 55px -28px rgba(15, 23, 42, 0.55);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--sheet-primary-dark);
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(15, 23, 42, 0.55);
+  padding: 0;
+}
+
+.modal-close:hover {
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.modal-body {
+  flex: 1 1 auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: hidden;
+}
+
+.modal-intro {
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.65);
+  line-height: 1.45;
+}
+
+.actuals-list {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.actual-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(226, 232, 240, 0.35);
+}
+
+.actual-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.actual-label {
+  font-weight: 600;
+  color: var(--sheet-primary-dark);
+}
+
+.actual-plan {
+  font-size: 0.78rem;
+  color: rgba(71, 85, 105, 0.8);
+}
+
+.actual-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 0.45rem 0.7rem;
+}
+
+.actual-input-prefix {
+  font-weight: 600;
+  color: rgba(22, 101, 52, 0.7);
+}
+
+.actual-input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.actual-input:focus {
+  outline: none;
+}
+
+.modal-footer {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  padding-top: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.modal-link {
+  border: none;
+  background: none;
+  color: rgba(4, 120, 87, 0.9);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.modal-link:hover {
+  color: var(--sheet-primary-dark);
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .modal-header {
+    padding: 1rem 1.2rem;
+  }
+
+  .modal-body {
+    padding: 1.2rem;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .modal-actions {
+    justify-content: flex-end;
+  }
+}

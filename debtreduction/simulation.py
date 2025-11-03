@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, Iterable, List, Optional
 
-from .models import Debt, Setting, ScheduleOverride
+from .models import Debt, PaymentOverride, ScheduleOverride, Setting
 
 
 CENT = Decimal("0.01")
@@ -89,7 +89,8 @@ def order_debts(strategy: str, debts: Iterable[DebtState]) -> List[DebtState]:
 def run_simulation(
     settings: Setting,
     debts: Iterable[Debt],
-    overrides: Iterable[ScheduleOverride],
+    schedule_overrides: Iterable[ScheduleOverride],
+    payment_overrides: Optional[Iterable[PaymentOverride]] = None,
 ) -> dict:
     debt_states = [
         DebtState(
@@ -125,10 +126,19 @@ def run_simulation(
             "Monthly budget is less than sum of minimum payments. Increase the budget."
         )
 
-    overrides_map: Dict[int, Decimal] = {
+    if payment_overrides is None:
+        payment_overrides = []
+
+    schedule_overrides_map: Dict[int, Decimal] = {
         override.month_index: decimal_amount(override.additional_amount)
-        for override in overrides
+        for override in schedule_overrides
     }
+    payment_override_map: Dict[int, Dict[int, Decimal]] = {}
+    for override in payment_overrides:
+        amount = quantize(decimal_amount(override.amount))
+        if amount < Decimal("0.00"):
+            continue
+        payment_override_map.setdefault(override.month_index, {})[override.debt_id] = amount
 
     strategy = settings.strategy
     ordered_states = order_debts(strategy, debt_states)
@@ -164,12 +174,15 @@ def run_simulation(
                 interest_accrued_this_month = quantize(interest_accrued_this_month + interest)
                 total_interest = quantize(total_interest + interest)
 
+        balances_after_interest = {
+            debt.id: quantize(debt.balance) for debt in debt_states
+        }
+
         available_pool = initial_snowball + freed_minimums
-        additional_amount = overrides_map.get(month_index, Decimal("0.00"))
+        additional_amount = schedule_overrides_map.get(month_index, Decimal("0.00"))
         available_pool = quantize(available_pool + additional_amount)
 
         surplus_pool = Decimal("0.00")
-        newly_freed = Decimal("0.00")
 
         # Apply minimum payments.
         for debt in ordered_states:
@@ -186,11 +199,8 @@ def run_simulation(
             if min_payment > payment:
                 surplus_pool = quantize(surplus_pool + (min_payment - payment))
 
-            if debt.balance <= Decimal("0.00") and debt.id not in paid_ids:
-                newly_freed = quantize(newly_freed + debt.minimum_payment)
+            if debt.balance <= Decimal("0.00"):
                 debt.balance = Decimal("0.00")
-                paid_ids.add(debt.id)
-                debt.payoff_month_index = month_index
 
         remaining_snowball = quantize(available_pool + surplus_pool)
 
@@ -210,11 +220,91 @@ def run_simulation(
             payments_this_month[debt.id] = quantize(payments_this_month[debt.id] + payment)
             remaining_snowball = quantize(remaining_snowball - payment)
 
-            if debt.balance <= Decimal("0.00") and debt.id not in paid_ids:
-                newly_freed = quantize(newly_freed + debt.minimum_payment)
+            if debt.balance <= Decimal("0.00"):
                 debt.balance = Decimal("0.00")
-                paid_ids.add(debt.id)
-                debt.payoff_month_index = month_index
+
+        default_payments = {
+            debt_id: quantize(amount) for debt_id, amount in payments_this_month.items()
+        }
+        final_payments = dict(default_payments)
+        overrides_for_month = payment_override_map.get(month_index, {})
+        month_warnings: List[str] = []
+
+        for debt_id, override_amount in overrides_for_month.items():
+            if debt_id not in final_payments:
+                continue
+            balance_cap = balances_after_interest.get(debt_id, Decimal("0.00"))
+            capped_amount = min(balance_cap, override_amount)
+            if override_amount > balance_cap:
+                month_warnings.append(
+                    f"Override for debt {debt_id} capped at remaining balance."
+                )
+            final_payments[debt_id] = quantize(capped_amount)
+
+        total_default = quantize(sum(default_payments.values()))
+        total_final = quantize(sum(final_payments.values()))
+
+        if total_final > total_default:
+            excess = quantize(total_final - total_default)
+            for debt in ordered_states:
+                if excess <= Decimal("0.00"):
+                    break
+                if debt.id in overrides_for_month:
+                    continue
+                current_payment = final_payments.get(debt.id, Decimal("0.00"))
+                if current_payment <= Decimal("0.00"):
+                    continue
+                reduction = min(current_payment, excess)
+                if reduction <= Decimal("0.00"):
+                    continue
+                final_payments[debt.id] = quantize(current_payment - reduction)
+                excess = quantize(excess - reduction)
+            if excess > Decimal("0.00"):
+                month_warnings.append(
+                    "Overrides require more funds than available; total payment increased."
+                )
+        elif total_final < total_default:
+            deficit = quantize(total_default - total_final)
+            for debt in ordered_states:
+                if deficit <= Decimal("0.00"):
+                    break
+                if debt.id in overrides_for_month:
+                    continue
+                capacity = quantize(
+                    balances_after_interest.get(debt.id, Decimal("0.00"))
+                    - final_payments.get(debt.id, Decimal("0.00"))
+                )
+                if capacity <= Decimal("0.00"):
+                    continue
+                addition = min(capacity, deficit)
+                if addition <= Decimal("0.00"):
+                    continue
+                final_payments[debt.id] = quantize(
+                    final_payments.get(debt.id, Decimal("0.00")) + addition
+                )
+                deficit = quantize(deficit - addition)
+            if deficit > Decimal("0.00"):
+                month_warnings.append(
+                    "Overrides reduced payments; remaining budget left unallocated."
+                )
+
+        payments_this_month = {
+            debt.id: quantize(final_payments.get(debt.id, Decimal("0.00")))
+            for debt in debt_states
+        }
+
+        newly_freed = Decimal("0.00")
+
+        for debt in debt_states:
+            debt.balance = balances_after_interest.get(debt.id, Decimal("0.00"))
+            payment = payments_this_month.get(debt.id, Decimal("0.00"))
+            debt.balance = quantize(debt.balance - payment)
+            if debt.balance <= Decimal("0.00"):
+                if debt.id not in paid_ids:
+                    newly_freed = quantize(newly_freed + debt.minimum_payment)
+                    paid_ids.add(debt.id)
+                    debt.payoff_month_index = month_index
+                debt.balance = Decimal("0.00")
 
         months_output.append(
             {
@@ -234,6 +324,8 @@ def run_simulation(
                 },
             }
         )
+        if month_warnings:
+            months_output[-1]["paymentOverrideWarnings"] = month_warnings
 
         freed_minimums = quantize(freed_minimums + newly_freed)
 
