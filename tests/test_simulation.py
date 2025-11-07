@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from debtreduction.models import Debt, PaymentOverride, ScheduleOverride, Setting
+from debtreduction.models import Debt, DebtSnapshot, PaymentOverride, ScheduleOverride, Setting
 from debtreduction.simulation import SimulationError, run_simulation
 
 
@@ -33,6 +33,24 @@ def make_settings(strategy: str, monthly_budget: str = "200.00"):
         balance_date=date(2024, 1, 1),
         monthly_budget=Decimal(monthly_budget),
         strategy=strategy,
+    )
+
+
+def make_snapshot(
+    debt_id: int,
+    creditor: str,
+    initial_balance: str,
+    interest_paid: str = "0.00",
+    payoff_month_label: str | None = None,
+    months_to_payoff: int | None = None,
+):
+    return DebtSnapshot(
+        debt_id=debt_id,
+        creditor=creditor,
+        initial_balance=Decimal(initial_balance),
+        interest_paid=Decimal(interest_paid),
+        payoff_month_label=payoff_month_label,
+        months_to_payoff=months_to_payoff,
     )
 
 
@@ -220,3 +238,36 @@ def test_payment_overrides_exceed_budget_include_shortfall_amount():
         f"Overrides require more funds than available; need an additional ${shortfall:.2f}."
     )
     assert expected_message in warnings
+
+
+def test_closed_snapshots_removed_from_schedule_but_remain_in_summary():
+    settings = make_settings("avalanche", "200.00")
+    debts = [
+        make_debt(1, "Loan A", "500.00", 10.0, "50.00", position=0),
+        make_debt(2, "Loan B", "800.00", 8.0, "40.00", position=1),
+    ]
+    snapshots = [
+        make_snapshot(
+            1,
+            "Loan A",
+            "500.00",
+            interest_paid="25.00",
+            payoff_month_label="May 2024",
+            months_to_payoff=4,
+        )
+    ]
+
+    result = run_simulation(settings, debts, [], snapshots=snapshots)
+
+    assert len(result["debts"]) == 1
+    assert result["debts"][0]["creditor"] == "Loan B"
+
+    assert len(result["closedDebts"]) == 1
+    closed_summary = result["closedDebts"][0]
+    assert closed_summary["creditor"] == "Loan A"
+    assert closed_summary["initialBalance"] == "500.00"
+    assert closed_summary["interestPaid"] == "25.00"
+    assert closed_summary["isClosed"] is True
+
+    for month in result["months"]:
+        assert "1" not in month["payments"]

@@ -6,7 +6,7 @@ from decimal import Decimal
 from flask import Blueprint, jsonify, request
 
 from .database import session_scope
-from .models import Debt, PaymentOverride, ScheduleOverride, Setting
+from .models import Debt, DebtSnapshot, PaymentOverride, ScheduleOverride, Setting
 from .simulation import SimulationError, run_simulation
 
 
@@ -115,6 +115,51 @@ def update_debt(debt_id: int):
         return jsonify(debt.to_dict())
 
 
+@api_bp.route("/debts/<int:debt_id>/close", methods=["POST"])
+def close_debt(debt_id: int):
+    payload = request.get_json(silent=True) or {}
+    summary = payload.get("summary") or {}
+
+    def _parse_decimal(value, default):
+        if value is None:
+            return default
+        return Decimal(str(value)).quantize(Decimal("0.01"))
+
+    with session_scope() as session:
+        debt = session.get(Debt, debt_id)
+        if debt is None:
+            return jsonify({"error": "Debt not found"}), 404
+
+        initial_balance = _parse_decimal(summary.get("initialBalance"), debt.balance)
+        interest_paid = _parse_decimal(summary.get("interestPaid"), Decimal("0.00"))
+        payoff_month_label_raw = summary.get("payoffMonthLabel")
+        payoff_month_label = (
+            str(payoff_month_label_raw)[:20] if payoff_month_label_raw is not None else None
+        )
+        months_to_payoff_raw = summary.get("monthsToPayoff")
+        months_to_payoff = None
+        if months_to_payoff_raw is not None:
+            try:
+                months_to_payoff = int(months_to_payoff_raw)
+            except (TypeError, ValueError):
+                return jsonify({"error": "monthsToPayoff must be an integer"}), 400
+
+        snapshot = debt.snapshot
+        if snapshot is None:
+            snapshot = DebtSnapshot(debt=debt)
+
+        snapshot.creditor = debt.creditor
+        snapshot.initial_balance = initial_balance
+        snapshot.interest_paid = interest_paid
+        snapshot.payoff_month_label = payoff_month_label
+        snapshot.months_to_payoff = months_to_payoff
+
+        session.add(snapshot)
+        session.commit()
+        session.refresh(debt)
+        return jsonify(debt.to_dict())
+
+
 @api_bp.route("/debts/<int:debt_id>", methods=["DELETE"])
 def delete_debt(debt_id: int):
     with session_scope() as session:
@@ -185,9 +230,10 @@ def simulate():
             .order_by(PaymentOverride.month_index, PaymentOverride.debt_id)
             .all()
         )
+        snapshots = session.query(DebtSnapshot).all()
 
     try:
-        result = run_simulation(settings, debts, overrides, payment_overrides)
+        result = run_simulation(settings, debts, overrides, payment_overrides, snapshots)
     except SimulationError as exc:
         return jsonify({"error": str(exc)}), 400
 

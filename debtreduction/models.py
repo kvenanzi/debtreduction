@@ -1,9 +1,19 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -38,6 +48,13 @@ class Debt(Base):
     minimum_payment = Column(DECIMAL_TYPE, nullable=False)
     custom_priority = Column(Integer, nullable=True)
     position = Column(Integer, nullable=False, default=0)
+    snapshot = relationship(
+        "DebtSnapshot",
+        back_populates="debt",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def to_dict(self) -> dict:
         return {
@@ -48,6 +65,8 @@ class Debt(Base):
             "minimumPayment": str(self.minimum_payment),
             "customPriority": self.custom_priority,
             "position": self.position,
+            "isClosed": self.snapshot is not None,
+            "closedSummary": self.snapshot.to_dict() if self.snapshot else None,
         }
 
 
@@ -86,4 +105,33 @@ class PaymentOverride(Base):
             "debtId": self.debt_id,
             "amount": str(self.amount),
             "note": self.note,
+        }
+
+
+class DebtSnapshot(Base):
+    __tablename__ = "debt_snapshots"
+
+    debt_id = Column(
+        Integer,
+        ForeignKey("debts.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    creditor = Column(String(100), nullable=False)
+    initial_balance = Column(DECIMAL_TYPE, nullable=False)
+    interest_paid = Column(DECIMAL_TYPE, nullable=False, default=Decimal("0.00"))
+    payoff_month_label = Column(String(20), nullable=True)
+    months_to_payoff = Column(Integer, nullable=True)
+    closed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    debt = relationship("Debt", back_populates="snapshot", uselist=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "debtId": self.debt_id,
+            "creditor": self.creditor,
+            "initialBalance": str(self.initial_balance),
+            "interestPaid": str(self.interest_paid),
+            "payoffMonthLabel": self.payoff_month_label,
+            "monthsToPayoff": self.months_to_payoff,
+            "closedAt": self.closed_at.isoformat(),
         }

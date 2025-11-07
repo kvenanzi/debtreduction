@@ -497,6 +497,35 @@ table.data-table td:first-child {
   text-transform: uppercase;
 }
 
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-pill--closed {
+  background: rgba(6, 95, 70, 0.14);
+  color: rgba(6, 78, 59, 0.9);
+  border: 1px solid rgba(5, 46, 22, 0.18);
+}
+
+.status-pill.summary-pill {
+  margin-left: 0.35rem;
+}
+
+.data-table tbody tr.is-closed {
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.data-table tbody tr.is-closed input {
+  color: rgba(71, 85, 105, 0.9);
+}
+
 .override-pill.is-muted {
   background: rgba(148, 163, 184, 0.25);
   color: rgba(71, 85, 105, 0.9);

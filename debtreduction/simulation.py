@@ -4,9 +4,9 @@ import calendar
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence
 
-from .models import Debt, PaymentOverride, ScheduleOverride, Setting
+from .models import Debt, DebtSnapshot, PaymentOverride, ScheduleOverride, Setting
 
 
 CENT = Decimal("0.01")
@@ -91,7 +91,23 @@ def run_simulation(
     debts: Iterable[Debt],
     schedule_overrides: Iterable[ScheduleOverride],
     payment_overrides: Optional[Iterable[PaymentOverride]] = None,
+    snapshots: Optional[Sequence[DebtSnapshot]] = None,
 ) -> dict:
+    snapshot_map = {snapshot.debt_id: snapshot for snapshot in snapshots or []}
+    closed_summaries: List[tuple[int, dict]] = []
+
+    def build_closed_summary(debt: Debt, snapshot: DebtSnapshot) -> dict:
+        creditor = snapshot.creditor or debt.creditor
+        return {
+            "id": debt.id,
+            "creditor": creditor,
+            "initialBalance": str(quantize(decimal_amount(snapshot.initial_balance))),
+            "interestPaid": str(quantize(decimal_amount(snapshot.interest_paid))),
+            "monthsToPayoff": snapshot.months_to_payoff or 0,
+            "payoffMonthLabel": snapshot.payoff_month_label,
+            "isClosed": True,
+        }
+
     debt_states = [
         DebtState(
             id=debt.id,
@@ -104,12 +120,23 @@ def run_simulation(
             position=debt.position,
         )
         for debt in debts
+        if not snapshot_map.get(debt.id)
+    ]
+
+    for debt in debts:
+        snapshot = snapshot_map.get(debt.id)
+        if snapshot:
+            closed_summaries.append((debt.position, build_closed_summary(debt, snapshot)))
+
+    sorted_closed_summaries = [
+        summary for _, summary in sorted(closed_summaries, key=lambda item: item[0])
     ]
 
     if not debt_states:
         return {
             "months": [],
             "debts": [],
+            "closedDebts": sorted_closed_summaries,
             "totals": {
                 "totalInterest": "0.00",
                 "totalMonths": 0,
@@ -330,12 +357,14 @@ def run_simulation(
                 "interestPaid": str(quantize(debt.interest_paid)),
                 "monthsToPayoff": months_to_payoff,
                 "payoffMonthLabel": payoff_month.strftime("%b %Y") if payoff_month else None,
+                "isClosed": False,
             }
         )
 
     return {
         "months": months_output,
         "debts": debt_summaries,
+        "closedDebts": sorted_closed_summaries,
         "totals": {
             "totalInterest": str(quantize(total_interest)),
             "totalMonths": total_months,

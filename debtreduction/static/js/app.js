@@ -46,6 +46,26 @@ const strategyLabels = {
   custom: "Custom Priority",
 };
 
+const ZERO_EPSILON = 0.005;
+
+function isApproximatelyZero(value) {
+  if (!Number.isFinite(value)) {
+    return false;
+  }
+  return Math.abs(value) <= ZERO_EPSILON;
+}
+
+function isDebtClosed(debt) {
+  if (typeof debt?.isClosed === "boolean") {
+    return debt.isClosed;
+  }
+  const balanceValue = parseCurrency(debt.balance);
+  const minimumValue = parseCurrency(debt.minimumPayment);
+  const normalizedBalance = Number.isFinite(balanceValue) ? balanceValue : 0;
+  const normalizedMinimum = Number.isFinite(minimumValue) ? minimumValue : 0;
+  return isApproximatelyZero(normalizedBalance) && isApproximatelyZero(normalizedMinimum);
+}
+
 function formatCurrency(value) {
   const num = Number.parseFloat(value);
   if (Number.isNaN(num)) return "$0.00";
@@ -194,6 +214,9 @@ async function loadSimulation(showToast = true) {
 
 function calculateMinimumTotal() {
   return state.debts.reduce((sum, debt) => {
+    if (isDebtClosed(debt)) {
+      return sum;
+    }
     const value = Number.parseFloat(debt.minimumPayment ?? 0);
     return sum + (Number.isNaN(value) ? 0 : value);
   }, 0);
@@ -248,11 +271,17 @@ function renderDebts() {
   state.debts.forEach((debt, index) => {
     const row = document.createElement("tr");
     row.dataset.id = debt.id;
+    const closed = isDebtClosed(debt);
+    row.dataset.closed = closed ? "true" : "false";
+    row.classList.toggle("is-closed", closed);
     balanceSum += Number.parseFloat(debt.balance) || 0;
     minimumSum += Number.parseFloat(debt.minimumPayment) || 0;
     const balanceFormatted = formatBudgetInput(debt.balance);
     const aprFormatted = formatPercentInput(debt.apr);
     const paymentFormatted = formatBudgetInput(debt.minimumPayment);
+    const closeControl = closed
+      ? '<span class="status-pill status-pill--closed">Closed</span>'
+      : '<button type="button" class="btn-action" data-action="close">Close Loan</button>';
     row.innerHTML = `
       <td class="px-3 py-2 font-semibold text-slate-700">${index + 1}</td>
       <td class="px-3 py-2">
@@ -282,6 +311,7 @@ function renderDebts() {
       <td class="px-3 py-2">
         <div class="flex flex-wrap gap-2 text-xs">
           <button type="button" class="btn-action" data-action="save">Save</button>
+          ${closeControl}
           <button type="button" class="btn-action" data-action="delete">Delete</button>
           <button type="button" class="btn-action" data-action="up" ${index === 0 ? "disabled" : ""}>↑</button>
           <button type="button" class="btn-action" data-action="down" ${index === state.debts.length - 1 ? "disabled" : ""}>↓</button>
@@ -312,18 +342,19 @@ function buildDebtPayload(row) {
   const apr = row.querySelector('[name="apr"]').value;
   const minimumPayment = row.querySelector('[name="minimumPayment"]').value;
   const customPriority = row.querySelector('[name="customPriority"]').value;
+  const allowZeroValues = row?.dataset?.closed === "true";
   if (!creditor) throw new Error("Creditor is required");
   payload.creditor = creditor;
   const parsedBalance = parseCurrency(balance);
   const parsedApr = parsePercent(apr);
   const parsedMinimum = parseCurrency(minimumPayment);
-  if (Number.isNaN(parsedBalance) || parsedBalance <= 0) {
+  if (Number.isNaN(parsedBalance) || (!allowZeroValues && parsedBalance <= 0)) {
     throw new Error("Balance must be greater than 0");
   }
   if (Number.isNaN(parsedApr) || parsedApr < 0) {
     throw new Error("APR must be zero or positive");
   }
-  if (Number.isNaN(parsedMinimum) || parsedMinimum <= 0) {
+  if (Number.isNaN(parsedMinimum) || (!allowZeroValues && parsedMinimum <= 0)) {
     throw new Error("Minimum payment must be greater than 0");
   }
   payload.balance = Number.parseFloat(parsedBalance.toFixed(2));
@@ -335,14 +366,15 @@ function buildDebtPayload(row) {
 
 function renderSimulation() {
   if (!state.simulation) return;
-  const { debts, months, totals } = state.simulation;
+  const { debts: activeDebts = [], months, totals, closedDebts = [] } = state.simulation;
+  const summaryDebts = [...activeDebts, ...closedDebts];
 
   const minimumPayment = totals.minimumMonthlyPayment ?? totals.minPaymentsSum;
   minPaymentsEl.textContent = formatCurrency(minimumPayment);
   initialSnowballEl.textContent = formatCurrency(totals.initialSnowball);
   totalMonthsEl.textContent = totals.totalMonths;
   totalInterestEl.textContent = formatCurrency(totals.totalInterest);
-  debtsCountEl.textContent = debts.length;
+  debtsCountEl.textContent = summaryDebts.length;
 
   if (state.settings) {
     const { strategy, monthlyBudget } = state.settings;
@@ -355,17 +387,23 @@ function renderSimulation() {
   summaryTotalInterestEl.textContent = formatCurrency(totals.totalInterest);
   summaryDebtFreeEl.textContent = debtFreeLabel;
 
-  const currentBalances = computeCurrentBalances(months, debts);
+  const currentBalances = computeCurrentBalances(months, activeDebts);
 
   summaryTable.innerHTML = "";
-  if (debts.length === 0) {
+  if (summaryDebts.length === 0) {
     summaryTable.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-slate-500">Add debts to view the payoff summary.</td></tr>';
   } else {
-    debts.forEach((debt) => {
-      const currentBalanceValue = currentBalances.get(debt.id) ?? parseCurrency(debt.initialBalance);
+    summaryDebts.forEach((debt) => {
+      const isClosed = Boolean(debt.isClosed);
+      const currentBalanceValue = isClosed
+        ? 0
+        : currentBalances.get(debt.id) ?? parseCurrency(debt.initialBalance);
+      const statusLabel = isClosed
+        ? '<span class="status-pill status-pill--closed summary-pill">Closed</span>'
+        : "";
       const row = document.createElement("tr");
       row.innerHTML = `
-        <td class="px-3 py-2">${debt.creditor}</td>
+        <td class="px-3 py-2">${debt.creditor} ${statusLabel}</td>
         <td class="px-3 py-2">${formatCurrency(debt.initialBalance)}</td>
         <td class="px-3 py-2">${formatCurrency(debt.interestPaid)}</td>
         <td class="px-3 py-2">${formatCurrency(currentBalanceValue)}</td>
@@ -376,7 +414,7 @@ function renderSimulation() {
     });
   }
 
-  renderSchedule(months, debts);
+  renderSchedule(months, activeDebts);
   renderChart(months);
   const balanceTrend = buildBalanceTrend(months);
   renderBalanceChart(balanceTrend.labels, balanceTrend.values);
@@ -590,6 +628,9 @@ function buildBalanceTrend(months) {
   const labels = [];
   const values = [];
   const initialTotal = state.debts.reduce((sum, debt) => {
+    if (isDebtClosed(debt)) {
+      return sum;
+    }
     const value = parseCurrency(debt.balance ?? 0);
     return sum + (Number.isNaN(value) ? 0 : value);
   }, 0);
@@ -869,6 +910,41 @@ debtsTable.addEventListener("click", async (event) => {
       await fetchJSON(`/api/debts/${debtId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
+      });
+      await loadDebts();
+      await loadSimulation(true);
+    } catch (error) {
+      showNotification(error.message, "error");
+    }
+  }
+
+  if (action === "close") {
+    const confirmClose = window.confirm(
+      "Mark this loan as closed? Future schedules will stop allocating payments and the current balance will show $0."
+    );
+    if (!confirmClose) return;
+    const summaryEntry =
+      state.simulation?.debts?.find((item) => item.id === debtId) ??
+      state.simulation?.closedDebts?.find((item) => item.id === debtId);
+    let summaryPayload = null;
+    if (summaryEntry) {
+      const initialBalanceValue = parseCurrency(summaryEntry.initialBalance);
+      const interestPaidValue = parseCurrency(summaryEntry.interestPaid);
+      summaryPayload = {
+        initialBalance: Number.isNaN(initialBalanceValue)
+          ? null
+          : Number.parseFloat(initialBalanceValue.toFixed(2)),
+        interestPaid: Number.isNaN(interestPaidValue)
+          ? null
+          : Number.parseFloat(interestPaidValue.toFixed(2)),
+        payoffMonthLabel: summaryEntry.payoffMonthLabel,
+        monthsToPayoff: summaryEntry.monthsToPayoff,
+      };
+    }
+    try {
+      await fetchJSON(`/api/debts/${debtId}/close`, {
+        method: "POST",
+        body: JSON.stringify({ summary: summaryPayload }),
       });
       await loadDebts();
       await loadSimulation(true);
