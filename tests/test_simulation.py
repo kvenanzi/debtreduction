@@ -271,3 +271,21 @@ def test_closed_snapshots_removed_from_schedule_but_remain_in_summary():
 
     for month in result["months"]:
         assert "1" not in month["payments"]
+
+
+def test_reopening_debt_returns_it_to_schedule():
+    settings = make_settings("avalanche", "200.00")
+    debts = [
+        make_debt(1, "Loan A", "300.00", 9.0, "40.00", position=0),
+        make_debt(2, "Loan B", "400.00", 11.0, "30.00", position=1),
+    ]
+    snapshots = [make_snapshot(2, "Loan B", "400.00", payoff_month_label="Jun 2024", months_to_payoff=6)]
+
+    result_with_snapshot = run_simulation(settings, debts, [], snapshots=snapshots)
+    assert len(result_with_snapshot["debts"]) == 1
+    assert result_with_snapshot["debts"][0]["creditor"] == "Loan A"
+
+    result_without_snapshot = run_simulation(settings, debts, [])
+    assert len(result_without_snapshot["debts"]) == 2
+    creditors = [item["creditor"] for item in result_without_snapshot["debts"]]
+    assert creditors == ["Loan B", "Loan A"] or creditors == ["Loan A", "Loan B"]

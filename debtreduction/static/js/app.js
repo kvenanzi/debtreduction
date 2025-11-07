@@ -26,6 +26,9 @@ const actualsTitle = document.getElementById("actuals-modal-title");
 const actualsMonthInput = document.getElementById("actuals-month-index");
 const actualsClearBtn = document.getElementById("actuals-clear");
 const modalDismissButtons = document.querySelectorAll('[data-dismiss="actuals-modal"]');
+const congratsBanner = document.getElementById("congrats-banner");
+const congratsCountEl = document.getElementById("congrats-count");
+const congratsPluralEl = document.querySelector("#congrats-banner .celebration-plural");
 let monthlyBudgetManuallySet = false;
 
 const state = {
@@ -280,7 +283,10 @@ function renderDebts() {
     const aprFormatted = formatPercentInput(debt.apr);
     const paymentFormatted = formatBudgetInput(debt.minimumPayment);
     const closeControl = closed
-      ? '<span class="status-pill status-pill--closed">Closed</span>'
+      ? `
+          <span class="status-pill status-pill--closed">Closed</span>
+          <button type="button" class="btn-action" data-action="reopen">Reopen Loan</button>
+        `
       : '<button type="button" class="btn-action" data-action="close">Close Loan</button>';
     row.innerHTML = `
       <td class="px-3 py-2 font-semibold text-slate-700">${index + 1}</td>
@@ -368,6 +374,7 @@ function renderSimulation() {
   if (!state.simulation) return;
   const { debts: activeDebts = [], months, totals, closedDebts = [] } = state.simulation;
   const summaryDebts = [...activeDebts, ...closedDebts];
+  const closedCount = closedDebts.length;
 
   const minimumPayment = totals.minimumMonthlyPayment ?? totals.minPaymentsSum;
   minPaymentsEl.textContent = formatCurrency(minimumPayment);
@@ -386,6 +393,19 @@ function renderSimulation() {
   debtFreeDateEl.textContent = debtFreeLabel;
   summaryTotalInterestEl.textContent = formatCurrency(totals.totalInterest);
   summaryDebtFreeEl.textContent = debtFreeLabel;
+  if (congratsBanner) {
+    if (closedCount > 0) {
+      congratsBanner.classList.remove("hidden");
+      if (congratsCountEl) {
+        congratsCountEl.textContent = closedCount;
+      }
+      if (congratsPluralEl) {
+        congratsPluralEl.textContent = closedCount === 1 ? "loan" : "loans";
+      }
+    } else {
+      congratsBanner.classList.add("hidden");
+    }
+  }
 
   const currentBalances = computeCurrentBalances(months, activeDebts);
 
@@ -946,6 +966,20 @@ debtsTable.addEventListener("click", async (event) => {
         method: "POST",
         body: JSON.stringify({ summary: summaryPayload }),
       });
+      await loadDebts();
+      await loadSimulation(true);
+    } catch (error) {
+      showNotification(error.message, "error");
+    }
+  }
+
+  if (action === "reopen") {
+    const confirmReopen = window.confirm(
+      "Reopen this loan? It will reappear in the payoff schedule using its saved balances."
+    );
+    if (!confirmReopen) return;
+    try {
+      await fetchJSON(`/api/debts/${debtId}/reopen`, { method: "POST" });
       await loadDebts();
       await loadSimulation(true);
     } catch (error) {

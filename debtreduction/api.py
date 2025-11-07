@@ -160,6 +160,21 @@ def close_debt(debt_id: int):
         return jsonify(debt.to_dict())
 
 
+@api_bp.route("/debts/<int:debt_id>/reopen", methods=["POST"])
+def reopen_debt(debt_id: int):
+    with session_scope() as session:
+        debt = session.get(Debt, debt_id)
+        if debt is None:
+            return jsonify({"error": "Debt not found"}), 404
+        snapshot = debt.snapshot
+        if snapshot is None:
+            return jsonify({"error": "Debt is not closed"}), 400
+        session.delete(snapshot)
+        session.commit()
+        session.refresh(debt)
+        return jsonify(debt.to_dict())
+
+
 @api_bp.route("/debts/<int:debt_id>", methods=["DELETE"])
 def delete_debt(debt_id: int):
     with session_scope() as session:
