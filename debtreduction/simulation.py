@@ -93,7 +93,10 @@ def run_simulation(
     payment_overrides: Optional[Iterable[PaymentOverride]] = None,
     snapshots: Optional[Sequence[DebtSnapshot]] = None,
 ) -> dict:
+    debts_list = list(debts)
     snapshot_map = {snapshot.debt_id: snapshot for snapshot in snapshots or []}
+    closed_debt_ids = {debt.id for debt in debts_list if snapshot_map.get(debt.id)}
+    schedule_debt_ids = [debt.id for debt in debts_list]
     closed_summaries: List[tuple[int, dict]] = []
 
     def build_closed_summary(debt: Debt, snapshot: DebtSnapshot) -> dict:
@@ -119,11 +122,11 @@ def run_simulation(
             custom_priority=debt.custom_priority,
             position=debt.position,
         )
-        for debt in debts
+        for debt in debts_list
         if not snapshot_map.get(debt.id)
     ]
 
-    for debt in debts:
+    for debt in debts_list:
         snapshot = snapshot_map.get(debt.id)
         if snapshot:
             closed_summaries.append((debt.position, build_closed_summary(debt, snapshot)))
@@ -188,7 +191,7 @@ def run_simulation(
         ordered_states = order_debts(strategy, debt_states)
 
         interest_accrued_this_month = Decimal("0.00")
-        payments_this_month: Dict[int, Decimal] = {d.id: Decimal("0.00") for d in debt_states}
+        active_payments: Dict[int, Decimal] = {d.id: Decimal("0.00") for d in debt_states}
 
         # Accrue interest first.
         for debt in ordered_states:
@@ -204,6 +207,8 @@ def run_simulation(
         balances_after_interest = {
             debt.id: quantize(debt.balance) for debt in debt_states
         }
+        for closed_id in closed_debt_ids:
+            balances_after_interest.setdefault(closed_id, Decimal("0.00"))
 
         available_pool = initial_snowball + freed_minimums
         additional_amount = schedule_overrides_map.get(month_index, Decimal("0.00"))
@@ -221,7 +226,7 @@ def run_simulation(
             payment = quantize(payment)
 
             debt.balance = quantize(debt.balance - payment)
-            payments_this_month[debt.id] = quantize(payments_this_month[debt.id] + payment)
+            active_payments[debt.id] = quantize(active_payments[debt.id] + payment)
 
             if min_payment > payment:
                 surplus_pool = quantize(surplus_pool + (min_payment - payment))
@@ -244,14 +249,14 @@ def run_simulation(
                 continue
 
             debt.balance = quantize(debt.balance - payment)
-            payments_this_month[debt.id] = quantize(payments_this_month[debt.id] + payment)
+            active_payments[debt.id] = quantize(active_payments[debt.id] + payment)
             remaining_snowball = quantize(remaining_snowball - payment)
 
             if debt.balance <= Decimal("0.00"):
                 debt.balance = Decimal("0.00")
 
         default_payments = {
-            debt_id: quantize(amount) for debt_id, amount in payments_this_month.items()
+            debt_id: quantize(amount) for debt_id, amount in active_payments.items()
         }
         final_payments = dict(default_payments)
         overrides_for_month = payment_override_map.get(month_index, {})
@@ -285,7 +290,7 @@ def run_simulation(
                     "Overrides reduced payments; remaining budget left unallocated."
                 )
 
-        payments_this_month = {
+        payments_for_active = {
             debt.id: quantize(final_payments.get(debt.id, Decimal("0.00")))
             for debt in debt_states
         }
@@ -294,7 +299,7 @@ def run_simulation(
 
         for debt in debt_states:
             debt.balance = balances_after_interest.get(debt.id, Decimal("0.00"))
-            payment = payments_this_month.get(debt.id, Decimal("0.00"))
+            payment = payments_for_active.get(debt.id, Decimal("0.00"))
             debt.balance = quantize(debt.balance - payment)
             if debt.balance <= Decimal("0.00"):
                 if debt.id not in paid_ids:
@@ -302,6 +307,24 @@ def run_simulation(
                     paid_ids.add(debt.id)
                     debt.payoff_month_index = month_index
                 debt.balance = Decimal("0.00")
+
+        default_payments_output = {
+            str(debt_id): str(quantize(default_payments.get(debt_id, Decimal("0.00"))))
+            for debt_id in schedule_debt_ids
+        }
+        payments_output = {
+            str(debt_id): str(
+                quantize(payments_for_active.get(debt_id, Decimal("0.00")))
+            )
+            for debt_id in schedule_debt_ids
+        }
+        remaining_balance_map = {debt.id: debt.balance for debt in debt_states}
+        for closed_id in closed_debt_ids:
+            remaining_balance_map.setdefault(closed_id, Decimal("0.00"))
+        remaining_balances_output = {
+            str(debt_id): str(quantize(remaining_balance_map.get(debt_id, Decimal("0.00"))))
+            for debt_id in schedule_debt_ids
+        }
 
         months_output.append(
             {
@@ -311,18 +334,9 @@ def run_simulation(
                 "interestAccrued": str(quantize(interest_accrued_this_month)),
                 "snowballAmount": str(quantize(available_pool)),
                 "additionalAmount": str(quantize(additional_amount)),
-                "defaultPayments": {
-                    str(debt_id): str(quantize(amount))
-                    for debt_id, amount in default_payments.items()
-                },
-                "payments": {
-                    str(debt_id): str(quantize(amount))
-                    for debt_id, amount in payments_this_month.items()
-                },
-                "remainingBalances": {
-                    str(debt.id): str(quantize(debt.balance))
-                    for debt in debt_states
-                },
+                "defaultPayments": default_payments_output,
+                "payments": payments_output,
+                "remainingBalances": remaining_balances_output,
             }
         )
         if month_warnings:

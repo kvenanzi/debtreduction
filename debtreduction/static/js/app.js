@@ -434,7 +434,8 @@ function renderSimulation() {
     });
   }
 
-  renderSchedule(months, activeDebts);
+  const scheduleDebts = state.debts?.length ? state.debts : summaryDebts;
+  renderSchedule(months, scheduleDebts);
   renderChart(months);
   const balanceTrend = buildBalanceTrend(months);
   renderBalanceChart(balanceTrend.labels, balanceTrend.values);

@@ -270,7 +270,8 @@ def test_closed_snapshots_removed_from_schedule_but_remain_in_summary():
     assert closed_summary["isClosed"] is True
 
     for month in result["months"]:
-        assert "1" not in month["payments"]
+        assert month["payments"]["1"] == "0.00"
+        assert month["defaultPayments"]["1"] == "0.00"
 
 
 def test_reopening_debt_returns_it_to_schedule():
@@ -289,3 +290,32 @@ def test_reopening_debt_returns_it_to_schedule():
     assert len(result_without_snapshot["debts"]) == 2
     creditors = [item["creditor"] for item in result_without_snapshot["debts"]]
     assert creditors == ["Loan B", "Loan A"] or creditors == ["Loan A", "Loan B"]
+
+
+def test_closed_debts_remain_in_schedule_with_zero_payments():
+    settings = make_settings("avalanche", "300.00")
+    debts = [
+        make_debt(1, "Loan A", "600.00", 12.0, "100.00", position=0),
+        make_debt(2, "Loan B", "400.00", 8.0, "80.00", position=1),
+    ]
+    snapshots = [
+        make_snapshot(
+            1,
+            "Loan A",
+            "600.00",
+            interest_paid="50.00",
+            payoff_month_label="Feb 2024",
+            months_to_payoff=2,
+        )
+    ]
+
+    result = run_simulation(settings, debts, [], snapshots=snapshots)
+
+    # Closed debt should still appear in payment schedule with zeroed allocations.
+    first_month = result["months"][0]
+    assert first_month["payments"]["1"] == "0.00"
+    assert first_month["defaultPayments"]["1"] == "0.00"
+    assert first_month["remainingBalances"]["1"] == "0.00"
+
+    # Open debt payments should remain unaffected.
+    assert Decimal(first_month["payments"]["2"]) > Decimal("0.00")
